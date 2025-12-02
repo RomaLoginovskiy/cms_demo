@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cms-demo
+  labels:
+    name: cms-demo
+    app: demo-cms

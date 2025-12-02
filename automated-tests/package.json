@@ -1,0 +1,39 @@
+{
+  "name": "cms-automated-tests",
+  "version": "1.0.0",
+  "description": "Automated Puppeteer testing suite for CMS Demo application",
+  "main": "cms-puppeteer-test.js",
+  "scripts": {
+    "test": "node cms-puppeteer-test.js",
+    "test:headless": "node cms-puppeteer-test.js --headless",
+    "test:continuous": "node cms-puppeteer-test.js --continuous 600",
+    "test:continuous:headless": "node cms-puppeteer-test.js --continuous 600 --headless",
+    "install-deps": "npm install"
+  },
+  "keywords": [
+    "puppeteer",
+    "automation",
+    "testing",
+    "cms",
+    "e2e"
+  ],
+  "author": "CMS Demo Team",
+  "license": "MIT",
+  "dependencies": {
+    "puppeteer": "^24.2.0"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.2.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-repo/cms-demo"
+  },
+  "bugs": {
+    "url": "https://github.com/your-repo/cms-demo/issues"
+  },
+  "homepage": "https://github.com/your-repo/cms-demo#readme"
+}

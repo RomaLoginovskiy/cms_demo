@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Open+Sans:wght@300;400;500;600;700&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap');
+
+@layer base {
+  body {
+    @apply font-sans text-charcoal bg-white;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .hero-title {
+    @apply text-5xl md:text-6xl font-light text-white text-center;
+  }
+  
+  .hero-subtitle {
+    @apply text-xl font-serif italic text-white text-center opacity-90;
+  }
+  
+  .nav-link {
+    @apply uppercase text-sm tracking-widest hover:text-coral transition-colors duration-200;
+  }
+  
+  .nav-link-active {
+    @apply border-b border-coral;
+  }
+  
+  .media-tile {
+    @apply relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-all duration-300 hover:scale-105;
+  }
+  
+  .media-tile-image {
+    @apply w-full h-48 md:h-56 object-cover;
+  }
+  
+  .media-tile-category {
+    @apply text-xs uppercase tracking-wider text-gray-medium text-center mt-3;
+  }
+  
+  .btn-primary {
+    @apply bg-coral text-white px-6 py-2 rounded-md hover:bg-coral/90 transition-colors duration-200;
+  }
+  
+  .btn-secondary {
+    @apply border border-coral text-coral px-6 py-2 rounded-md hover:bg-coral hover:text-white transition-colors duration-200;
+  }
+}

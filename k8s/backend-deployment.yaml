@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: cms-demo
+  labels:
+    app: backend
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        component: api
+    spec:
+      containers:
+      - name: backend
+        image: demo-cms-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ASPNETCORE_URLS
+          value: "http://+:8080"
+        - name: ConnectionStrings__DefaultConnection
+          value: "Data Source=/app/data/media.db"
+        - name: Storage__Path
+          value: "/app/uploads"
+        - name: NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OpenTelemetry__OtlpEndpoint
+          value: "http://$(NODE):4318"
+        volumeMounts:
+        - name: backend-data
+          mountPath: /app/data
+        - name: backend-uploads
+          mountPath: /app/uploads
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: backend-data
+        persistentVolumeClaim:
+          claimName: backend-data-pvc
+      - name: backend-uploads
+        persistentVolumeClaim:
+          claimName: backend-uploads-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: cms-demo
+  labels:
+    app: backend
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http

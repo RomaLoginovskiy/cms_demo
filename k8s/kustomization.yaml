@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cms-demo
+
+resources:
+  - namespace.yaml
+  - persistent-volumes.yaml
+  - backend-deployment.yaml
+  - frontend-deployment.yaml
+  - otel-collector-deployment.yaml
+  - ingress.yaml
+
+commonLabels:
+  project: demo-cms
+  managed-by: kustomize
