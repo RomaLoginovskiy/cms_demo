@@ -1,6 +1,7 @@
 # .NET
 bin/
 obj/
+coralogix/
 *.user
 *.suo
 *.cache
