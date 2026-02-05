@@ -29,6 +29,14 @@ spec:
             name: backend
             port:
               number: 8080
+      # OTLP HTTP endpoint for frontend RUM traces
+      - path: /v1/traces
+        pathType: Prefix
+        backend:
+          service:
+            name: otel-agent
+            port:
+              number: 4318
       # Frontend routes - everything else
       - path: /
         pathType: Prefix

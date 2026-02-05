@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Media, UpdateMediaRequest } from '../types';
 import { mediaApi } from '../services/api';
 import { useMedia } from '../contexts/MediaContext';
+import TagInput from './TagInput';
 
 interface MediaModalProps {
   media: Media | null;
@@ -15,12 +16,14 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
   const [isDeleting, setIsDeleting] = useState(false);
   const [title, setTitle] = useState(media?.title || '');
   const [description, setDescription] = useState(media?.description || '');
+  const [tags, setTags] = useState<string[]>(media?.tags || []);
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
     if (media) {
       setTitle(media.title || '');
       setDescription(media.description || '');
+      setTags(media.tags || []);
     }
   }, [media]);
 
@@ -32,6 +35,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
       const updateData: UpdateMediaRequest = {
         title: title.trim() || undefined,
         description: description.trim() || undefined,
+        tags: tags,
       };
 
       const updatedMedia = await mediaApi.update(media.id, updateData);
@@ -129,13 +133,13 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
               </div>
 
               {/* Description */}
-              <div className="mb-6">
+              <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 {isEditing ? (
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
+                    rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral focus:border-transparent"
                     placeholder="Enter description..."
                   />
@@ -144,6 +148,18 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                     {media.description || 'No description available'}
                   </p>
                 )}
+              </div>
+
+              {/* Tags */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                <TagInput
+                  tags={tags}
+                  onChange={setTags}
+                  readOnly={!isEditing}
+                  disabled={loading}
+                  placeholder="Add tags..."
+                />
               </div>
 
               {/* File Information */}
@@ -183,6 +199,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                       setIsEditing(false);
                       setTitle(media.title || '');
                       setDescription(media.description || '');
+                      setTags(media.tags || []);
                     }}
                     disabled={loading}
                     className="btn-secondary flex-1"

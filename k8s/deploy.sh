@@ -39,6 +39,27 @@ detect_cluster() {
     fi
 }
 
+# Generate unique image tag based on git hash or timestamp
+generate_image_tag() {
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+    
+    cd "$PROJECT_ROOT"
+    
+    # Try to get git short hash
+    if git rev-parse --short HEAD &> /dev/null; then
+        GIT_HASH=$(git rev-parse --short HEAD)
+        # Add timestamp to ensure uniqueness even with same commit
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        IMAGE_TAG="${GIT_HASH}-${TIMESTAMP}"
+    else
+        # Fallback to timestamp only
+        IMAGE_TAG=$(date +%Y%m%d%H%M%S)
+    fi
+    
+    echo "$IMAGE_TAG"
+}
+
 # Build Docker images
 build_images() {
     print_info "Building Docker images..."
@@ -47,15 +68,22 @@ build_images() {
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
     
-    # Build backend
+    # Generate unique tag
+    IMAGE_TAG=$(generate_image_tag)
+    export IMAGE_TAG
+    print_info "Using image tag: $IMAGE_TAG"
+    
+    # Build backend with no-cache to ensure fresh build
     print_info "Building backend image..."
-    docker build -t demo-cms-backend:latest -f "$PROJECT_ROOT/backend/DemoCms.Api/Dockerfile" "$PROJECT_ROOT/backend/"
+    docker build --no-cache -t demo-cms-backend:$IMAGE_TAG -t demo-cms-backend:latest \
+        -f "$PROJECT_ROOT/backend/DemoCms.Api/Dockerfile" "$PROJECT_ROOT/backend/"
     
-    # Build frontend
-    print_info "Building frontend image..."
-    docker build -t demo-cms-frontend:latest -f "$PROJECT_ROOT/frontend/Dockerfile" "$PROJECT_ROOT/frontend/"
+    # Build frontend with no-cache to ensure npm packages are refreshed
+    print_info "Building frontend image (with fresh npm install)..."
+    docker build --no-cache -t demo-cms-frontend:$IMAGE_TAG -t demo-cms-frontend:latest \
+        -f "$PROJECT_ROOT/frontend/Dockerfile" "$PROJECT_ROOT/frontend/"
     
-    print_info "Images built successfully!"
+    print_info "Images built successfully with tag: $IMAGE_TAG"
 }
 
 # Load images into cluster
@@ -63,13 +91,19 @@ load_images() {
     CLUSTER_TYPE=$(detect_cluster)
     
     print_info "Detected cluster type: $CLUSTER_TYPE"
+    print_info "Loading images with tag: $IMAGE_TAG"
     
     if [ "$CLUSTER_TYPE" = "minikube" ]; then
         print_info "Loading images into minikube..."
+        minikube image load demo-cms-backend:$IMAGE_TAG
+        minikube image load demo-cms-frontend:$IMAGE_TAG
+        # Also load latest tag
         minikube image load demo-cms-backend:latest
         minikube image load demo-cms-frontend:latest
     elif [ "$CLUSTER_TYPE" = "kind" ]; then
         print_info "Loading images into kind..."
+        kind load docker-image demo-cms-backend:$IMAGE_TAG
+        kind load docker-image demo-cms-frontend:$IMAGE_TAG
         kind load docker-image demo-cms-backend:latest
         kind load docker-image demo-cms-frontend:latest
     elif [ "$CLUSTER_TYPE" = "docker-desktop" ]; then
@@ -129,6 +163,14 @@ create_otel_config() {
     fi
 }
 
+# Remove logs-generator namespace if it exists
+remove_logs_generator() {
+    if kubectl get namespace logs-generator &> /dev/null; then
+        print_warning "Removing logs-generator namespace to stop synthetic logs..."
+        kubectl delete namespace logs-generator --ignore-not-found
+    fi
+}
+
 # Deploy to Kubernetes
 deploy() {
     print_info "Deploying to Kubernetes..."
@@ -144,6 +186,10 @@ deploy() {
     print_info "Creating persistent volumes..."
     kubectl apply -f "$SCRIPT_DIR/persistent-volumes.yaml"
     
+    # Deploy Kafka
+    print_info "Deploying Kafka..."
+    kubectl apply -f "$SCRIPT_DIR/kafka-deployment.yaml"
+    
     # Apply deployments
     print_info "Deploying backend..."
     kubectl apply -f "$SCRIPT_DIR/backend-deployment.yaml"
@@ -151,9 +197,30 @@ deploy() {
     print_info "Deploying frontend..."
     kubectl apply -f "$SCRIPT_DIR/frontend-deployment.yaml"
     
+    # Apply OTEL agent service
+    print_info "Creating OTEL agent service..."
+    kubectl apply -f "$SCRIPT_DIR/otel-agent-service.yaml"
+    
     # Apply ingress
     print_info "Creating ingress..."
     kubectl apply -f "$SCRIPT_DIR/ingress.yaml"
+    
+    # Update images with new tag if IMAGE_TAG is set (from build_images)
+    if [ -n "$IMAGE_TAG" ]; then
+        print_info "Updating deployments to use new image tag: $IMAGE_TAG"
+        kubectl set image deployment/backend backend=demo-cms-backend:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/frontend frontend=demo-cms-frontend:$IMAGE_TAG -n cms-demo
+        
+        # Force rollout to ensure pods pick up the new images
+        print_info "Forcing rollout restart to apply new images..."
+        kubectl rollout restart deployment/backend -n cms-demo
+        kubectl rollout restart deployment/frontend -n cms-demo
+    elif [ "$FORCE_REFRESH" = true ]; then
+        # Force rollout restart without rebuilding (uses existing latest image)
+        print_info "Forcing rollout restart with existing images..."
+        kubectl rollout restart deployment/backend -n cms-demo
+        kubectl rollout restart deployment/frontend -n cms-demo
+    fi
     
     print_info "Waiting for deployments to be ready..."
     kubectl wait --for=condition=available --timeout=300s \
@@ -244,8 +311,12 @@ main() {
             echo "  help         Show this help message"
             echo ""
             echo "Deploy Options:"
-            echo "  --skip-build    Skip building Docker images"
-            echo "  --no-images     Don't load images into cluster"
+            echo "  --skip-build      Skip building Docker images"
+            echo "  --no-images       Don't load images into cluster"
+            echo "  --force-refresh   Force rollout restart without rebuilding"
+            echo ""
+            echo "Note: By default, images are rebuilt with --no-cache to ensure"
+            echo "      npm packages and code changes are always picked up."
             exit 0
             ;;
         *)
@@ -279,6 +350,7 @@ main() {
     # Parse arguments
     BUILD_IMAGES=true
     SKIP_BUILD=false
+    FORCE_REFRESH=false
     
     for arg in "$@"; do
         case $arg in
@@ -290,6 +362,10 @@ main() {
                 BUILD_IMAGES=false
                 shift
                 ;;
+            --force-refresh)
+                FORCE_REFRESH=true
+                shift
+                ;;
         esac
     done
     
@@ -299,8 +375,14 @@ main() {
         load_images
     fi
     
+    # Export FORCE_REFRESH for use in deploy function
+    export FORCE_REFRESH
+    
     # Check and install ingress controller if needed
     check_ingress
+    
+    # Ensure logs-generator is removed
+    remove_logs_generator
     
     # Deploy application
     deploy

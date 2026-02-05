@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -8,6 +8,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoCms.Infrastructure", "DemoCms.Infrastructure\DemoCms.Infrastructure.csproj", "{54535918-CA15-43DB-8310-23CFFCEC5075}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoCms.Api", "DemoCms.Api\DemoCms.Api.csproj", "{44672023-6EE1-4661-AC37-A813FC5E67EB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoCms.MediaWorker", "DemoCms.MediaWorker\DemoCms.MediaWorker.csproj", "{9B0C9E0F-5F50-4F3A-9C0D-02C2F9C61C2F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoCms.MediaWorker.Tests", "DemoCms.MediaWorker.Tests\DemoCms.MediaWorker.Tests.csproj", "{5C7E6D3A-2F3D-4A8F-9A9A-7F5E4E1D2B17}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -30,5 +34,13 @@ Global
 		{44672023-6EE1-4661-AC37-A813FC5E67EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{44672023-6EE1-4661-AC37-A813FC5E67EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{44672023-6EE1-4661-AC37-A813FC5E67EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B0C9E0F-5F50-4F3A-9C0D-02C2F9C61C2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B0C9E0F-5F50-4F3A-9C0D-02C2F9C61C2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B0C9E0F-5F50-4F3A-9C0D-02C2F9C61C2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B0C9E0F-5F50-4F3A-9C0D-02C2F9C61C2F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C7E6D3A-2F3D-4A8F-9A9A-7F5E4E1D2B17}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C7E6D3A-2F3D-4A8F-9A9A-7F5E4E1D2B17}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C7E6D3A-2F3D-4A8F-9A9A-7F5E4E1D2B17}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C7E6D3A-2F3D-4A8F-9A9A-7F5E4E1D2B17}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

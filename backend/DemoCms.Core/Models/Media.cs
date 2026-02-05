@@ -25,4 +25,6 @@ public class Media
     
     [Required]
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
+    
+    public ICollection<MediaTag> MediaTags { get; set; } = new List<MediaTag>();
 } 

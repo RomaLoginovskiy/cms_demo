@@ -39,8 +39,36 @@ public class MediaController : ControllerBase
         return Ok(media);
     }
 
+    [HttpGet("tags")]
+    public async Task<ActionResult<IEnumerable<string>>> GetAllTags()
+    {
+        _logger.LogInformation("Getting all tags");
+        var tags = await _mediaService.GetAllTagsAsync();
+        return Ok(tags);
+    }
+
+    [HttpGet("filter")]
+    public async Task<ActionResult<IEnumerable<MediaDto>>> FilterByTags([FromQuery] string? tags)
+    {
+        _logger.LogInformation("Filtering media by tags: {Tags}", tags);
+        
+        if (string.IsNullOrWhiteSpace(tags))
+        {
+            var allMedia = await _mediaService.GetAllAsync();
+            return Ok(allMedia);
+        }
+
+        var tagList = tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .ToList();
+
+        var media = await _mediaService.GetByTagsAsync(tagList);
+        return Ok(media);
+    }
+
     [HttpPost]
-    public async Task<ActionResult<MediaDto>> Upload([FromForm] IFormFileCollection files, [FromForm] string? title, [FromForm] string? description)
+    public async Task<ActionResult<MediaDto>> Upload([FromForm] IFormFileCollection files, [FromForm] string? title, [FromForm] string? description, [FromForm] string? tags)
     {
         if (files == null || files.Count == 0)
         {
@@ -63,7 +91,17 @@ public class MediaController : ControllerBase
             return BadRequest("File size must be less than 5MB");
         }
 
-        _logger.LogInformation("Uploading file: {FileName}, Size: {FileSize}", file.FileName, file.Length);
+        _logger.LogInformation("Uploading file: {FileName}, Size: {FileSize}, Tags: {Tags}", file.FileName, file.Length, tags);
+
+        // Parse tags from comma-separated string
+        List<string>? tagList = null;
+        if (!string.IsNullOrWhiteSpace(tags))
+        {
+            tagList = tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(t => t.Trim())
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .ToList();
+        }
 
         var uploadDto = new UploadMediaDto
         {
@@ -72,7 +110,8 @@ public class MediaController : ControllerBase
             Description = description,
             ContentType = file.ContentType,
             Size = file.Length,
-            Content = file.OpenReadStream()
+            Content = file.OpenReadStream(),
+            Tags = tagList
         };
 
         try
@@ -136,4 +175,4 @@ public class MediaController : ControllerBase
 
         return File(fileStream, media.ContentType, media.FileName);
     }
-} 
+}

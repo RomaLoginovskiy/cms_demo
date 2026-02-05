@@ -6,6 +6,8 @@ interface MediaState {
   loading: boolean;
   error: string | null;
   selectedMedia: Media | null;
+  availableTags: string[];
+  selectedTags: string[];
 }
 
 type MediaAction =
@@ -15,13 +17,19 @@ type MediaAction =
   | { type: 'ADD_MEDIA'; payload: Media }
   | { type: 'UPDATE_MEDIA'; payload: Media }
   | { type: 'DELETE_MEDIA'; payload: string }
-  | { type: 'SELECT_MEDIA'; payload: Media | null };
+  | { type: 'SELECT_MEDIA'; payload: Media | null }
+  | { type: 'SET_AVAILABLE_TAGS'; payload: string[] }
+  | { type: 'SET_SELECTED_TAGS'; payload: string[] }
+  | { type: 'TOGGLE_TAG_FILTER'; payload: string }
+  | { type: 'CLEAR_TAG_FILTERS' };
 
 const initialState: MediaState = {
   media: [],
   loading: false,
   error: null,
   selectedMedia: null,
+  availableTags: [],
+  selectedTags: [],
 };
 
 function mediaReducer(state: MediaState, action: MediaAction): MediaState {
@@ -54,6 +62,19 @@ function mediaReducer(state: MediaState, action: MediaAction): MediaState {
       };
     case 'SELECT_MEDIA':
       return { ...state, selectedMedia: action.payload };
+    case 'SET_AVAILABLE_TAGS':
+      return { ...state, availableTags: action.payload };
+    case 'SET_SELECTED_TAGS':
+      return { ...state, selectedTags: action.payload };
+    case 'TOGGLE_TAG_FILTER':
+      return {
+        ...state,
+        selectedTags: state.selectedTags.includes(action.payload)
+          ? state.selectedTags.filter(tag => tag !== action.payload)
+          : [...state.selectedTags, action.payload],
+      };
+    case 'CLEAR_TAG_FILTERS':
+      return { ...state, selectedTags: [] };
     default:
       return state;
   }

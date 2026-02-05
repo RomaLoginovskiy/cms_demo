@@ -1,5 +1,5 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /app
 
 # Copy solution file
@@ -9,6 +9,8 @@ COPY *.sln ./
 COPY DemoCms.Core/*.csproj ./DemoCms.Core/
 COPY DemoCms.Infrastructure/*.csproj ./DemoCms.Infrastructure/
 COPY DemoCms.Api/*.csproj ./DemoCms.Api/
+COPY DemoCms.MediaWorker/*.csproj ./DemoCms.MediaWorker/
+COPY DemoCms.MediaWorker.Tests/*.csproj ./DemoCms.MediaWorker.Tests/
 
 # Restore dependencies
 RUN dotnet restore
@@ -20,7 +22,7 @@ COPY . .
 RUN dotnet publish DemoCms.Api/DemoCms.Api.csproj -c Release -o /app/publish
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # Create uploads directory

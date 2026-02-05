@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useMedia } from '../contexts/MediaContext';
 import { mediaApi } from '../services/api';
 import { measurementService } from '../services/measurements';
@@ -13,7 +13,7 @@ interface MediaGalleryProps {
 
 export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
   const { state, dispatch } = useMedia();
-  const { media, loading, error } = state;
+  const { media, loading, error, availableTags, selectedTags } = state;
   
   // Use component measurement hook
   const { measureInteraction } = useComponentMeasurement('MediaGallery', {
@@ -25,6 +25,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
 
   useEffect(() => {
     loadMedia();
+    loadTags();
     
     // Measure DOM metrics after component mounts
     setTimeout(() => {
@@ -32,6 +33,39 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
     }, 100);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Filtered media based on selected tags
+  const filteredMedia = useMemo(() => {
+    if (selectedTags.length === 0) {
+      return media;
+    }
+    return media.filter(item => 
+      item.tags && item.tags.some(tag => 
+        selectedTags.some(selectedTag => 
+          tag.toLowerCase() === selectedTag.toLowerCase()
+        )
+      )
+    );
+  }, [media, selectedTags]);
+
+  const loadTags = async () => {
+    try {
+      const tags = await mediaApi.getAllTags();
+      dispatch({ type: 'SET_AVAILABLE_TAGS', payload: tags });
+    } catch (err) {
+      console.error('Failed to load tags:', err);
+    }
+  };
+
+  const handleTagClick = (tag: string) => {
+    dispatch({ type: 'TOGGLE_TAG_FILTER', payload: tag });
+    measurementService.sendCustomMeasurement('tag_filter_toggle', 1, { tag });
+  };
+
+  const handleClearFilters = () => {
+    dispatch({ type: 'CLEAR_TAG_FILTERS' });
+    measurementService.sendCustomMeasurement('tag_filter_clear', 1);
+  };
 
   const loadMedia = async () => {
     try {
@@ -134,20 +168,77 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
       <div className="mb-8">
         <h2 className="text-3xl font-display font-light text-charcoal mb-2">Media Gallery</h2>
         <p className="text-gray-medium">
-          {media.length} {media.length === 1 ? 'item' : 'items'}
+          {selectedTags.length > 0 
+            ? `${filteredMedia.length} of ${media.length} items`
+            : `${media.length} ${media.length === 1 ? 'item' : 'items'}`
+          }
         </p>
       </div>
 
+      {/* Tag Filters */}
+      {availableTags.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-medium text-gray-700">Filter by tags</h3>
+            {selectedTags.length > 0 && (
+              <button
+                onClick={handleClearFilters}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableTags.map((tag) => {
+              const isSelected = selectedTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  onClick={() => handleTagClick(tag)}
+                  className={`
+                    px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                    ${isSelected 
+                      ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }
+                  `}
+                >
+                  {tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* No results message */}
+      {filteredMedia.length === 0 && selectedTags.length > 0 && (
+        <div className="flex justify-center items-center min-h-48">
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">No media matches the selected tags.</p>
+            <button
+              onClick={handleClearFilters}
+              className="text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Clear filters
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Responsive Grid: 1 column on mobile, 2 on tablet, 3 on desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {media.map((item) => (
-          <MediaTile
-            key={item.id}
-            media={item}
-            onClick={onMediaSelect}
-          />
-        ))}
-      </div>
+      {filteredMedia.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredMedia.map((item) => (
+            <MediaTile
+              key={item.id}
+              media={item}
+              onClick={onMediaSelect}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 } 

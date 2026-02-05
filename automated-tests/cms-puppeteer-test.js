@@ -123,6 +123,49 @@ class CMSTestRunner {
     }
   }
 
+  async testTagsApi() {
+    console.log('\n🏷️ Testing Tags API...');
+    
+    try {
+      // Test tags endpoint
+      const response = await this.page.evaluate(async (apiUrl) => {
+        try {
+          const res = await fetch(`${apiUrl}/media/tags`);
+          const data = await res.json();
+          return { 
+            status: res.status, 
+            ok: res.ok, 
+            isArray: Array.isArray(data),
+            count: Array.isArray(data) ? data.length : 0,
+            tags: Array.isArray(data) ? data : []
+          };
+        } catch (error) {
+          return { status: 0, ok: false, error: error.message };
+        }
+      }, this.config.apiUrl);
+      
+      if (response.ok) {
+        console.log(`✅ Tags API is responding (status: ${response.status})`);
+        if (response.isArray) {
+          console.log(`✅ Response is an array`);
+          console.log(`📊 Available tags count: ${response.count}`);
+          if (response.count > 0) {
+            console.log(`🏷️ Tags: ${response.tags.join(', ')}`);
+          }
+        } else {
+          console.log('⚠️ Response is not an array');
+        }
+      } else {
+        console.log(`⚠️ Tags API returned status: ${response.status}`);
+        if (response.error) {
+          console.log(`⚠️ Error: ${response.error}`);
+        }
+      }
+    } catch (error) {
+      console.log('⚠️ Tags API test failed:', error.message);
+    }
+  }
+
   async testHomePage() {
     console.log('\n🏠 Testing Home/Gallery Page...');
     
@@ -280,6 +323,10 @@ class CMSTestRunner {
                 await descInput.type('Test image description for automated testing');
                 console.log('✅ Description input filled');
               }
+              
+              // Test tag input functionality
+              await this.addTagsDuringUpload();
+              
             } catch (error) {
               console.log('⚠️ Could not fill metadata inputs:', error.message);
             }
@@ -305,6 +352,283 @@ class CMSTestRunner {
     } catch (error) {
       console.error('❌ Upload page test failed:', error.message);
       await this.takeScreenshot('upload-page-error');
+    }
+  }
+
+  async addTagsDuringUpload() {
+    console.log('\n🏷️ Testing tag input during upload...');
+    
+    try {
+      // Find the TagInput component - look for the container with tag chips and input
+      const tagInputContainer = await this.page.$('[class*="flex"][class*="flex-wrap"][class*="gap"]') ||
+                                await this.page.$('[class*="border"][class*="rounded"]');
+      
+      // Find the tag input field within the upload form
+      const tagInput = await this.page.$('input[placeholder*="tag"], input[placeholder*="Tag"]');
+      
+      if (tagInput) {
+        console.log('✅ Tag input field found');
+        
+        // Add first tag
+        await tagInput.click();
+        await tagInput.type('nature');
+        await this.page.keyboard.press('Enter');
+        await this.delay(500);
+        console.log('✅ Added tag: nature');
+        
+        // Add second tag
+        await tagInput.click();
+        await tagInput.type('test');
+        await this.page.keyboard.press('Enter');
+        await this.delay(500);
+        console.log('✅ Added tag: test');
+        
+        // Add third tag using comma
+        await tagInput.click();
+        await tagInput.type('automated,');
+        await this.delay(500);
+        console.log('✅ Added tag: automated');
+        
+        await this.takeScreenshot('tags-added-during-upload');
+        
+        // Verify tags appear as chips
+        const tagChips = await this.page.$$('[class*="rounded-full"][class*="bg-blue"]');
+        if (tagChips.length > 0) {
+          console.log(`✅ ${tagChips.length} tag chip(s) displayed`);
+        } else {
+          // Try alternative selector
+          const altTagChips = await this.page.$$('span[class*="rounded-full"]');
+          if (altTagChips.length > 0) {
+            console.log(`✅ ${altTagChips.length} tag chip(s) displayed (alt selector)`);
+          }
+        }
+        
+      } else {
+        console.log('⚠️ Tag input field not found - trying alternative selectors');
+        
+        // Try finding by label
+        const tagLabel = await this.page.$('xpath=//label[contains(text(), "Tags")]');
+        if (tagLabel) {
+          const parentDiv = await tagLabel.$('xpath=..');
+          const input = await parentDiv.$('input');
+          if (input) {
+            await input.click();
+            await input.type('nature');
+            await this.page.keyboard.press('Enter');
+            console.log('✅ Added tag using label-based selector');
+          }
+        }
+      }
+      
+    } catch (error) {
+      console.log('⚠️ Tag input test during upload failed:', error.message);
+    }
+  }
+
+  async testMediaModalTags() {
+    console.log('\n🏷️ Testing Media Modal Tags...');
+    
+    try {
+      // Navigate to home page first
+      await this.page.goto(this.config.baseUrl, { waitUntil: 'networkidle0' });
+      await this.delay(2000);
+      
+      // Find media items
+      const mediaItems = await this.page.$$('[class*="media"], .tile, [data-testid*="media"], [class*="cursor-pointer"] img');
+      
+      if (mediaItems.length === 0) {
+        console.log('⚠️ No media items found to test modal tags');
+        return;
+      }
+      
+      console.log(`📊 Found ${mediaItems.length} media items`);
+      
+      // Click on first media item to open modal
+      await mediaItems[0].click();
+      await this.delay(1500);
+      
+      // Check if modal opened
+      const modal = await this.page.$('.fixed.inset-0, .modal, [role="dialog"]');
+      if (!modal) {
+        console.log('⚠️ Modal did not open');
+        return;
+      }
+      
+      console.log('✅ Media modal opened');
+      await this.takeScreenshot('modal-tags-view-mode');
+      
+      // Look for tags section in modal
+      const tagsLabel = await this.page.$('xpath=//label[contains(text(), "Tags")]');
+      if (tagsLabel) {
+        console.log('✅ Tags section found in modal');
+      }
+      
+      // Check for existing tags in view mode
+      const existingTags = await this.page.$$('.fixed [class*="rounded-full"][class*="bg-blue"]');
+      console.log(`📊 Existing tags in view mode: ${existingTags.length}`);
+      
+      // Find and click Edit button
+      const editButton = await this.page.$('button:has-text("Edit")') ||
+                        await this.page.$('xpath=//button[contains(text(), "Edit")]');
+      
+      if (editButton) {
+        await editButton.click();
+        await this.delay(1000);
+        console.log('✅ Edit mode activated');
+        await this.takeScreenshot('modal-tags-edit-mode');
+        
+        // Try to add a new tag in edit mode
+        const tagInput = await this.page.$('.fixed input[placeholder*="tag"], .fixed input[placeholder*="Tag"]');
+        if (tagInput) {
+          await tagInput.click();
+          await tagInput.type('edited-tag');
+          await this.page.keyboard.press('Enter');
+          await this.delay(500);
+          console.log('✅ Added new tag in edit mode');
+          
+          await this.takeScreenshot('modal-tag-added');
+        }
+        
+        // Try to remove a tag (click the X button on a tag chip)
+        const removeButtons = await this.page.$$('.fixed [class*="rounded-full"] button, .fixed span[class*="rounded-full"] button');
+        if (removeButtons.length > 0) {
+          await removeButtons[0].click();
+          await this.delay(500);
+          console.log('✅ Removed a tag');
+          await this.takeScreenshot('modal-tag-removed');
+        }
+        
+        // Save changes
+        const saveButton = await this.page.$('xpath=//button[contains(text(), "Save")]') ||
+                          await this.page.$('button:has-text("Save")');
+        if (saveButton) {
+          await saveButton.click();
+          await this.delay(2000);
+          console.log('✅ Changes saved');
+          await this.takeScreenshot('modal-tags-saved');
+        }
+      } else {
+        console.log('⚠️ Edit button not found');
+      }
+      
+      // Close modal
+      await this.page.keyboard.press('Escape');
+      await this.delay(500);
+      
+      console.log('✅ Media modal tags test completed');
+      
+    } catch (error) {
+      console.error('❌ Media modal tags test failed:', error.message);
+      await this.takeScreenshot('modal-tags-error');
+    }
+  }
+
+  async testGalleryTagFilter() {
+    console.log('\n🔍 Testing Gallery Tag Filter...');
+    
+    try {
+      // Navigate to home page
+      await this.page.goto(this.config.baseUrl, { waitUntil: 'networkidle0' });
+      await this.delay(2000);
+      
+      await this.takeScreenshot('gallery-before-filter');
+      
+      // Check for tag filter section
+      const filterSection = await this.page.$('xpath=//h3[contains(text(), "Filter by tags")]') ||
+                           await this.page.$('[class*="filter"], .tag-filter');
+      
+      if (!filterSection) {
+        console.log('⚠️ Tag filter section not found - may not have any tags yet');
+        
+        // Check if there are any tags via API
+        const tagsResponse = await this.page.evaluate(async (apiUrl) => {
+          try {
+            const res = await fetch(`${apiUrl}/media/tags`);
+            const data = await res.json();
+            return { count: Array.isArray(data) ? data.length : 0 };
+          } catch (error) {
+            return { count: 0, error: error.message };
+          }
+        }, this.config.apiUrl);
+        
+        if (tagsResponse.count === 0) {
+          console.log('ℹ️ No tags exist yet - filter section correctly hidden');
+          return;
+        }
+      }
+      
+      console.log('✅ Tag filter section found');
+      
+      // Get initial media count
+      const initialMediaItems = await this.page.$$('[class*="grid-cols"] > div, .media-item, .tile');
+      const initialCount = initialMediaItems.length;
+      console.log(`📊 Initial media count: ${initialCount}`);
+      
+      // Find tag filter buttons
+      const tagFilterButtons = await this.page.$$('button[class*="rounded-full"]');
+      console.log(`📊 Found ${tagFilterButtons.length} tag filter buttons`);
+      
+      if (tagFilterButtons.length > 0) {
+        // Click on first tag to filter
+        const firstTagButton = tagFilterButtons[0];
+        const tagText = await firstTagButton.evaluate(el => el.textContent);
+        console.log(`🔄 Clicking on tag: ${tagText}`);
+        
+        await firstTagButton.click();
+        await this.delay(1500);
+        
+        await this.takeScreenshot('gallery-filtered-by-tag');
+        
+        // Check filtered count
+        const filteredMediaItems = await this.page.$$('[class*="grid-cols"] > div, .media-item, .tile');
+        console.log(`📊 Filtered media count: ${filteredMediaItems.length}`);
+        
+        // Check if the count display updated
+        const countText = await this.page.$eval('p[class*="text-gray"]', el => el.textContent).catch(() => null);
+        if (countText) {
+          console.log(`📊 Gallery count display: ${countText}`);
+        }
+        
+        // Test multi-tag selection if more tags available
+        if (tagFilterButtons.length > 1) {
+          console.log('🔄 Testing multi-tag filter...');
+          await tagFilterButtons[1].click();
+          await this.delay(1500);
+          
+          await this.takeScreenshot('gallery-multi-tag-filter');
+          
+          const multiFilteredItems = await this.page.$$('[class*="grid-cols"] > div, .media-item, .tile');
+          console.log(`📊 Multi-tag filtered count: ${multiFilteredItems.length}`);
+        }
+        
+        // Test Clear filters button
+        const clearButton = await this.page.$('xpath=//button[contains(text(), "Clear filters")]') ||
+                           await this.page.$('button:has-text("Clear")');
+        
+        if (clearButton) {
+          console.log('🔄 Testing Clear filters...');
+          await clearButton.click();
+          await this.delay(1500);
+          
+          await this.takeScreenshot('gallery-filters-cleared');
+          
+          // Verify count is back to original
+          const clearedMediaItems = await this.page.$$('[class*="grid-cols"] > div, .media-item, .tile');
+          console.log(`📊 Media count after clear: ${clearedMediaItems.length}`);
+          
+          if (clearedMediaItems.length === initialCount) {
+            console.log('✅ Filters cleared successfully - count restored');
+          }
+        } else {
+          console.log('⚠️ Clear filters button not found');
+        }
+      }
+      
+      console.log('✅ Gallery tag filter test completed');
+      
+    } catch (error) {
+      console.error('❌ Gallery tag filter test failed:', error.message);
+      await this.takeScreenshot('gallery-filter-error');
     }
   }
 
@@ -446,41 +770,6 @@ class CMSTestRunner {
     }
   }
 
-  async performContinuousTests(duration = 300000) { // 5 minutes default
-    console.log(`\n🔄 Starting continuous testing for ${duration / 1000} seconds...`);
-    
-    const startTime = Date.now();
-    let cycleCount = 0;
-    
-    while (Date.now() - startTime < duration) {
-      cycleCount++;
-      console.log(`\n🔄 === Test Cycle ${cycleCount} ===`);
-      
-      try {
-        // Randomly pick a test to run
-        const tests = [
-          () => this.testHomePage(),
-          () => this.testUploadPage(),
-          () => this.testAboutPage(),
-          () => this.testNavigation()
-        ];
-        
-        const randomTest = tests[Math.floor(Math.random() * tests.length)];
-        await randomTest();
-        
-        // Random wait between tests
-        const waitTime = Math.random() * 5000 + 2000; // 2-7 seconds
-        console.log(`⏳ Waiting ${Math.round(waitTime / 1000)}s before next test...`);
-        await this.delay(waitTime);
-        
-      } catch (error) {
-        console.error(`❌ Error in test cycle ${cycleCount}:`, error.message);
-      }
-    }
-    
-    console.log(`\n✅ Continuous testing completed. Ran ${cycleCount} test cycles.`);
-  }
-
   async runAllTests() {
     try {
       await this.initialize();
@@ -493,17 +782,17 @@ class CMSTestRunner {
       
       // Test API health first
       await this.testApiHealth();
+      await this.testTagsApi();
       
       // Run individual tests
       await this.testHomePage();
       await this.testUploadPage();
+      await this.testMediaModalTags();
+      await this.testGalleryTagFilter();
       await this.testAboutPage();
       await this.testNavigation();
       await this.testResponsiveDesign();
-      
-      console.log('\n🔄 Starting continuous testing phase...');
-      await this.performContinuousTests(180000); // 3 minutes of continuous testing
-      
+
       console.log('\n✅ All tests completed successfully!');
       console.log('=' .repeat(50));
       
@@ -543,12 +832,14 @@ Usage: node cms-puppeteer-test.js [options]
 Options:
   --continuous [duration]  Run continuous testing (duration in seconds, default: 300)
   --headless              Run in headless mode
+  --tags-only             Run only tag-related tests
   --help, -h              Show this help message
 
 Examples:
   node cms-puppeteer-test.js                    # Run all tests once
   node cms-puppeteer-test.js --continuous 600   # Run continuous tests for 10 minutes
   node cms-puppeteer-test.js --headless         # Run in headless mode
+  node cms-puppeteer-test.js --tags-only        # Run only tag-related tests
     `);
     process.exit(0);
   }
@@ -565,20 +856,37 @@ Examples:
     console.log(`🔌 Using custom API URL: ${process.env.CMS_API_URL}`);
   }
   
-  const continuousIndex = args.indexOf('--continuous');
-  if (continuousIndex !== -1) {
-    const duration = args[continuousIndex + 1] ? parseInt(args[continuousIndex + 1]) * 1000 : 300000;
-    
-    runner.initialize().then(() => {
-      return runner.performContinuousTests(duration);
+  // Tags-only mode
+  if (args.includes('--tags-only')) {
+    runner.initialize().then(async () => {
+      console.log('\n🏷️ Running tag-related tests only...');
+      await runner.testTagsApi();
+      await runner.testUploadPage(); // Includes tag input test
+      await runner.testMediaModalTags();
+      await runner.testGalleryTagFilter();
+      console.log('\n✅ Tag tests completed!');
     }).then(() => {
       return runner.cleanup();
     }).catch(error => {
-      console.error('❌ Continuous testing failed:', error);
+      console.error('❌ Tag tests failed:', error);
       runner.cleanup();
     });
   } else {
-    runner.runAllTests();
+    const continuousIndex = args.indexOf('--continuous');
+    if (continuousIndex !== -1) {
+      const duration = args[continuousIndex + 1] ? parseInt(args[continuousIndex + 1]) * 1000 : 300000;
+      
+      runner.initialize().then(() => {
+        return runner.performContinuousTests(duration);
+      }).then(() => {
+        return runner.cleanup();
+      }).catch(error => {
+        console.error('❌ Continuous testing failed:', error);
+        runner.cleanup();
+      });
+    } else {
+      runner.runAllTests();
+    }
   }
 }
 

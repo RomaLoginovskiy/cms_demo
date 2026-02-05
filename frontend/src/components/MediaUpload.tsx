@@ -4,6 +4,7 @@ import { useMedia } from '../contexts/MediaContext';
 import { measurementService } from '../services/measurements';
 import { UploadMediaRequest } from '../types/index';
 import { mediaApi } from '../services/api';
+import TagInput from './TagInput';
 
 interface UploadFile {
   id: string;
@@ -11,6 +12,7 @@ interface UploadFile {
   preview: string;
   title: string;
   description: string;
+  tags: string[];
   isUploading: boolean;
   uploadProgress: number;
   error?: string;
@@ -44,6 +46,7 @@ const MediaUpload: React.FC = () => {
     preview: URL.createObjectURL(file),
     title: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
     description: '',
+    tags: [],
     isUploading: false,
     uploadProgress: 0,
   });
@@ -142,6 +145,7 @@ const MediaUpload: React.FC = () => {
       const uploadRequest: UploadMediaRequest = {
         title: uploadFile.title,
         description: uploadFile.description,
+        tags: uploadFile.tags.length > 0 ? uploadFile.tags : undefined,
       };
 
       // Simulate upload progress
@@ -322,6 +326,18 @@ const MediaUpload: React.FC = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Tags
+                      </label>
+                      <TagInput
+                        tags={uploadFile.tags}
+                        onChange={(tags) => updateFile(uploadFile.id, { tags })}
+                        disabled={uploadFile.isUploading}
+                        placeholder="Add tags (press Enter or comma to add)"
+                      />
                     </div>
 
                     <div className="flex items-center justify-between text-sm text-gray-500">

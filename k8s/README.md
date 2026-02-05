@@ -53,6 +53,12 @@ cd backend
 docker build -t demo-cms-backend:latest -f DemoCms.Api/Dockerfile .
 ```
 
+### Media Worker
+```bash
+cd backend
+docker build -t demo-cms-media-worker:latest -f DemoCms.MediaWorker/Dockerfile .
+```
+
 ### Frontend
 ```bash
 cd frontend
@@ -62,12 +68,14 @@ docker build -t demo-cms-frontend:latest -f Dockerfile .
 ### For minikube (load images into minikube)
 ```bash
 minikube image load demo-cms-backend:latest
+minikube image load demo-cms-media-worker:latest
 minikube image load demo-cms-frontend:latest
 ```
 
 ### For kind (load images into kind)
 ```bash
 kind load docker-image demo-cms-backend:latest
+kind load docker-image demo-cms-media-worker:latest
 kind load docker-image demo-cms-frontend:latest
 ```
 
@@ -86,13 +94,19 @@ kubectl apply -f k8s/namespace.yaml
 # 2. Create persistent volumes
 kubectl apply -f k8s/persistent-volumes.yaml
 
-# 3. Deploy backend
+# 3. Deploy Kafka
+kubectl apply -f k8s/kafka-deployment.yaml
+
+# 4. Deploy backend
 kubectl apply -f k8s/backend-deployment.yaml
 
-# 4. Deploy frontend
+# 5. Deploy media worker
+kubectl apply -f k8s/media-worker-deployment.yaml
+
+# 6. Deploy frontend
 kubectl apply -f k8s/frontend-deployment.yaml
 
-# 5. Deploy ingress
+# 7. Deploy ingress
 kubectl apply -f k8s/ingress.yaml
 ```
 
@@ -117,6 +131,12 @@ kubectl get ingress -n cms-demo
 ```bash
 # Backend logs
 kubectl logs -n cms-demo -l app=backend --tail=50 -f
+
+# Kafka logs
+kubectl logs -n cms-demo -l app=kafka --tail=50 -f
+
+# Media worker logs
+kubectl logs -n cms-demo -l app=media-worker --tail=50 -f
 
 # Frontend logs
 kubectl logs -n cms-demo -l app=frontend --tail=50 -f
@@ -182,6 +202,17 @@ Backend configuration is in `k8s/backend-deployment.yaml`:
 - `ASPNETCORE_ENVIRONMENT`: Production
 - `ConnectionStrings__DefaultConnection`: SQLite connection string
 - `Storage__Path`: Upload directory
+- `MediaEvents__Enabled`: Enable Kafka publishing
+- `MediaEvents__BootstrapServers`: Kafka broker list
+- `MediaEvents__Topic`: Media upload topic
+- `MediaEvents__PublicBaseUrl`: Public API base URL for workers
+
+Media worker configuration is in `k8s/media-worker-deployment.yaml`:
+- `Kafka__BootstrapServers`: Kafka broker list
+- `Kafka__Topic`: Media upload topic
+- `Kafka__GroupId`: Consumer group
+- `Llama__BaseUrl`: LLaMA HTTP endpoint
+- `Api__BaseUrl`: Demo CMS API base URL
 
 Frontend configuration is in `k8s/frontend-deployment.yaml`:
 - `REACT_APP_API_URL`: API base URL (uses ingress routing)

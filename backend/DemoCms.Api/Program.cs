@@ -1,8 +1,11 @@
+using DemoCms.Core.DTOs;
 using DemoCms.Core.Interfaces;
 using DemoCms.Infrastructure.Data;
+using DemoCms.Infrastructure.Messaging;
 using DemoCms.Infrastructure.Services;
 using DemoCms.Infrastructure.Storage;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -37,15 +40,25 @@ else
 var storagePath = builder.Configuration.GetValue<string>("Storage:Path") ?? "uploads";
 builder.Services.AddSingleton<IMediaStore>(provider => new LocalFileStore(storagePath));
 
+// Configure media event publishing
+builder.Services.Configure<MediaEventOptions>(builder.Configuration.GetSection("MediaEvents"));
+builder.Services.AddSingleton<IMediaEventProducer>(provider =>
+{
+    var options = provider.GetRequiredService<IOptions<MediaEventOptions>>().Value;
+    if (options.Enabled && !string.IsNullOrWhiteSpace(options.BootstrapServers))
+    {
+        return new KafkaMediaEventProducer(
+            provider.GetRequiredService<IOptions<MediaEventOptions>>(),
+            provider.GetRequiredService<ILogger<KafkaMediaEventProducer>>());
+    }
+
+    return new NullMediaEventProducer();
+});
+
 // Register services
 builder.Services.AddScoped<IMediaService, MediaService>();
 
-// Register error generator service
-var errorGeneratorEnabled = builder.Configuration.GetValue<bool>("ErrorGenerator:Enabled", true);
-if (errorGeneratorEnabled)
-{
-    builder.Services.AddHostedService<ErrorGeneratorService>();
-}
+// Error generator disabled by default
 
 // Configure CORS
 builder.Services.AddCors(options =>

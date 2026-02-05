@@ -110,6 +110,9 @@ export const mediaApi = {
     if (metadata.description) {
       formData.append('description', metadata.description);
     }
+    if (metadata.tags && metadata.tags.length > 0) {
+      formData.append('tags', metadata.tags.join(','));
+    }
 
     try {
       const response = await fetchWithTracing(`${API_BASE_URL}/api/media`, {
@@ -173,5 +176,30 @@ export const mediaApi = {
   // Get media file URL
   getFileUrl(id: string): string {
     return `${API_BASE_URL}/api/media/${id}/file`;
+  },
+
+  // Get all available tags
+  async getAllTags(): Promise<string[]> {
+    const response = await fetchWithTracing(`${API_BASE_URL}/api/media/tags`);
+    return response.json();
+  },
+
+  // Filter media by tags
+  async filterByTags(tags: string[]): Promise<Media[]> {
+    const tagsParam = tags.join(',');
+    const response = await fetchWithTracing(`${API_BASE_URL}/api/media/filter?tags=${encodeURIComponent(tagsParam)}`);
+    const data = await response.json();
+    
+    // Track response size and item count
+    const responseText = JSON.stringify(data);
+    measurementService.sendCustomMeasurement('api_response_size_bytes', new Blob([responseText]).size, {
+      endpoint: '/api/media/filter',
+      method: 'GET'
+    });
+    measurementService.sendCustomMeasurement('filtered_media_items_count', data.length, {
+      tags: tagsParam
+    });
+    
+    return data;
   },
 }; 

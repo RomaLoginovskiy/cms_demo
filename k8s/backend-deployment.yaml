@@ -7,7 +7,7 @@ metadata:
     app: backend
     component: api
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: backend
@@ -34,6 +34,14 @@ spec:
           value: "Data Source=/app/data/media.db"
         - name: Storage__Path
           value: "/app/uploads"
+        - name: MediaEvents__Enabled
+          value: "true"
+        - name: MediaEvents__BootstrapServers
+          value: "kafka:9092"
+        - name: MediaEvents__Topic
+          value: "media.uploaded"
+        - name: MediaEvents__PublicBaseUrl
+          value: "http://backend:8080"
         - name: NODE
           valueFrom:
             fieldRef:

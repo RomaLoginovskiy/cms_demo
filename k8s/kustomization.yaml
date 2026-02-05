@@ -6,9 +6,11 @@ namespace: cms-demo
 resources:
   - namespace.yaml
   - persistent-volumes.yaml
+  - kafka-deployment.yaml
   - backend-deployment.yaml
+  - media-worker-deployment.yaml
   - frontend-deployment.yaml
-  - otel-collector-deployment.yaml
+  - otel-agent-service.yaml
   - ingress.yaml
 
 commonLabels:

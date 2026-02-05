@@ -6,16 +6,19 @@ export interface Media {
   contentType: string;
   size: number;
   uploadedAt: string;
+  tags?: string[];
 }
 
 export interface UploadMediaRequest {
   title?: string;
   description?: string;
+  tags?: string[];
 }
 
 export interface UpdateMediaRequest {
   title?: string;
   description?: string;
+  tags?: string[];
 }
 
 export interface ApiError {

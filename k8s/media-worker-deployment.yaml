@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-worker
+  namespace: cms-demo
+  labels:
+    app: media-worker
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-worker
+  template:
+    metadata:
+      labels:
+        app: media-worker
+        component: worker
+    spec:
+      containers:
+      - name: media-worker
+        image: demo-cms-media-worker:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: Kafka__BootstrapServers
+          value: "kafka:9092"
+        - name: Kafka__Topic
+          value: "media.uploaded"
+        - name: Kafka__GroupId
+          value: "demo-cms-media-worker"
+        - name: Kafka__AutoOffsetReset
+          value: "Earliest"
+        - name: Kafka__EnableAutoCommit
+          value: "false"
+        - name: OpenAI__BaseUrl
+          value: "http://llama:11434/v1"
+        - name: OpenAI__ApiKey
+          value: "ollama"
+        - name: OpenAI__Model
+          value: "llama3.2-vision"
+        - name: OpenAI__Prompt
+          value: "Describe the image in one sentence."
+        - name: Api__BaseUrl
+          value: "http://backend:8080"
+        - name: NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OpenTelemetry__OtlpEndpoint
+          value: "http://$(NODE):4318"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

@@ -43,6 +43,24 @@ CoralogixRum.init({
     recordConsoleEvents: true, // Will record all console events from dev tools. Levels: log, debug, warn, error, info, table etc..
     sessionRecordingSampleRate: 100, // Percentage of overall sessions recording being tracked, defaults to 100% and applied after the overall sessionSampleRate.
   },
+  tracesExporter: (data: any) => {
+    // Forward traces to backend OTLP endpoint
+    // Runtime config from window.APP_CONFIG (injected at container startup)
+    // or fallback to build-time env variable for local development
+    const otlpEndpoint = "http://localhost:4318/v1/traces";
+    if (otlpEndpoint) {
+      fetch(otlpEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Token': '1234567890'
+        },
+        body: JSON.stringify(data),
+      }).catch(error => {
+        console.error('Failed to send traces to OTLP endpoint:', error);
+      });
+    }
+  },
   traceParentInHeader: {
     
     enabled: true,
