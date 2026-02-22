@@ -78,10 +78,10 @@ public class MediaController : ControllerBase
         var file = files[0]; // For now, handle single file upload
         
         // Validate file type
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "text/plain", "text/html", "text/csv" };
         if (!allowedTypes.Contains(file.ContentType.ToLowerInvariant()))
         {
-            return BadRequest("Only JPEG, PNG, GIF and WebP images are allowed");
+            return BadRequest("Only JPEG, PNG, GIF, WebP images and plain/text/html/csv files are allowed");
         }
 
         // Validate file size (5MB max as per PRD)
