@@ -76,7 +76,7 @@ build_images() {
     # Build backend with no-cache to ensure fresh build
     print_info "Building backend image..."
     docker build --no-cache -t demo-cms-backend:$IMAGE_TAG -t demo-cms-backend:latest \
-        -f "$PROJECT_ROOT/backend/DemoCms.Api/Dockerfile" "$PROJECT_ROOT/backend/"
+        -f "$PROJECT_ROOT/backend/Dockerfile" "$PROJECT_ROOT/backend/"
     
     # Build frontend with no-cache to ensure npm packages are refreshed
     print_info "Building frontend image (with fresh npm install)..."
@@ -193,6 +193,13 @@ deploy() {
     # Apply deployments
     print_info "Deploying backend..."
     kubectl apply -f "$SCRIPT_DIR/backend-deployment.yaml"
+
+    # Apply backend monitoring resources
+    print_info "Applying Prometheus RBAC..."
+    kubectl apply -f "$SCRIPT_DIR/prometheus-role.yaml"
+
+    print_info "Applying backend ServiceMonitor..."
+    kubectl apply -f "$SCRIPT_DIR/backend-serviceMonitor.yaml"
     
     print_info "Deploying frontend..."
     kubectl apply -f "$SCRIPT_DIR/frontend-deployment.yaml"

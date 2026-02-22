@@ -1,3 +1,4 @@
+// CMS Demo - Media Gallery
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
@@ -47,7 +48,7 @@ CoralogixRum.init({
     // Forward traces to backend OTLP endpoint
     // Runtime config from window.APP_CONFIG (injected at container startup)
     // or fallback to build-time env variable for local development
-    const otlpEndpoint = "http://localhost:4318/v1/traces";
+    const otlpEndpoint = "http://localhost/v1/traces";
     if (otlpEndpoint) {
       fetch(otlpEndpoint, {
         method: 'POST',

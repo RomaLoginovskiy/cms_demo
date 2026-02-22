@@ -1,5 +1,6 @@
 import { Media, UploadMediaRequest, UpdateMediaRequest } from '../types';
 import { measurementService } from './measurements';
+import { createTraceparent } from './tracing';
 
 // Use empty string for Docker deployment (nginx proxy handles routing)
 // or fallback to localhost:7043 for local development
@@ -10,7 +11,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL !== undefined
 async function fetchWithTracing(url: string, options: RequestInit = {}): Promise<Response> {
   const startTime = performance.now();
   const headers = new Headers(options.headers);
-  headers.set('traceparent', '00-' + crypto.randomUUID().replace(/-/g, '') + '-' + crypto.randomUUID().split('-')[0] + '-01');
+  headers.set('traceparent', createTraceparent());
   
   // Start time measurement for the API call
   // Extract pathname from URL or use the path directly if it's relative

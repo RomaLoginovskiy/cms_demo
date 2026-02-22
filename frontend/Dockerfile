@@ -26,7 +26,11 @@ FROM nginx:alpine AS runtime
 COPY --from=build /app/build /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.main.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/default.conf.template
+
+# Default backend host (override via env var: localhost:8080 for ECS, backend:8080 for K8s)
+ENV BACKEND_HOST=backend:8080
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -35,5 +39,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 # Expose port
 EXPOSE 80
 
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"] 
+# Substitute BACKEND_HOST into nginx config, then start nginx
+CMD ["/bin/sh", "-c", "envsubst '${BACKEND_HOST}' < /etc/nginx/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"] 

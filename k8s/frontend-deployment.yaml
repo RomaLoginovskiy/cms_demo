@@ -29,7 +29,7 @@ spec:
         - name: REACT_APP_API_URL
           value: "http://localhost/api"
         - name: REACT_APP_OTLP_ENDPOINT
-          value: "http://localhost:3001/v1/traces"
+          value: "http://localhost/v1/traces"
         - name: OpenTelemetry__OtlpEndpoint
           value: "http://$(NODE):4318"
         resources:

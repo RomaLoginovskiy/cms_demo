@@ -50,7 +50,7 @@ Before deploying, build the Docker images:
 ### Backend
 ```bash
 cd backend
-docker build -t demo-cms-backend:latest -f DemoCms.Api/Dockerfile .
+docker build -t demo-cms-backend:latest -f Dockerfile .
 ```
 
 ### Media Worker

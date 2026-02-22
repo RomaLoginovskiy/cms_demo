@@ -17,8 +17,16 @@ opentelemetry-cluster-collector:
       enabled: true
       storeCheckpoints: false
     resourceDetection:
-      enabled: false
-
+      enabled: true
+    hostMetrics:
+      enabled: true
+      process:
+        enabled: true
+    transactions:
+      enabled: true
+    hostEntityEvents:
+      enabled: true
+      
   config:  
     receivers:
       jmx/kafka:
@@ -27,77 +35,77 @@ opentelemetry-cluster-collector:
         collection_interval: 30s
     processors:
       # Transform processor to set/normalize severity before filtering
-      transform/set_severity:
-        error_mode: ignore
-        log_statements:
-          - context: log
-            statements:
-              # Set severity_number from severity_text if not set
-              - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^info")
-              - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^warn")
-              - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^error")
-              - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^fatal")
-              - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^debug")
-              - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^trace")
-              # Set severity_number from attributes if not set
-              - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^info")
-              - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^warn")
-              - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^error")
-              - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^debug")
-              - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^trace")
+      # transform/set_severity:
+      #   error_mode: ignore
+      #   log_statements:
+      #     - context: log
+      #       statements:
+      #         # Set severity_number from severity_text if not set
+      #         - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^info")
+      #         - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^warn")
+      #         - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^error")
+      #         - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^fatal")
+      #         - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^debug")
+      #         - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(severity_text, "(?i)^trace")
+      #         # Set severity_number from attributes if not set
+      #         - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^info")
+      #         - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^warn")
+      #         - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^error")
+      #         - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^debug")
+      #         - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(attributes["level"], "(?i)^trace")
       
-      # Filter by severity number - drops logs below INFO level
-      filter/severity_number:
-        error_mode: ignore
-        logs:
-          log_record:
-            # Filter out TRACE (1-4) and DEBUG (5-8) severity levels
-            # Only INFO (9+), WARN (13+), ERROR (17+), and FATAL (21+) logs pass through
-            - 'severity_number < SEVERITY_NUMBER_INFO'
+      # # Filter by severity number - drops logs below INFO level
+      # filter/severity_number:
+      #   error_mode: ignore
+      #   logs:
+      #     log_record:
+      #       # Filter out TRACE (1-4) and DEBUG (5-8) severity levels
+      #       # Only INFO (9+), WARN (13+), ERROR (17+), and FATAL (21+) logs pass through
+      #       - 'severity_number < SEVERITY_NUMBER_INFO'
       
-      # Filter by severity text - catches logs with debug/verbose indicators in severity field
-      filter/severity_text:
-        error_mode: ignore
-        logs:
-          log_record:
-            # Match common debug/verbose severity text patterns (case-insensitive regex)
-            # Matches: DEBUG, DEBUG2-4, TRACE, TRACE2-4, VERBOSE, DBG, TRC, VRB, FINE, FINEST, ALL
-            - 'IsMatch(severity_text, "(?i)^(debug|trace|verbose|dbg|trc|vrb|fine|finest|all)[0-4]?$")'
+      # # Filter by severity text - catches logs with debug/verbose indicators in severity field
+      # filter/severity_text:
+      #   error_mode: ignore
+      #   logs:
+      #     log_record:
+      #       # Match common debug/verbose severity text patterns (case-insensitive regex)
+      #       # Matches: DEBUG, DEBUG2-4, TRACE, TRACE2-4, VERBOSE, DBG, TRC, VRB, FINE, FINEST, ALL
+      #       - 'IsMatch(severity_text, "(?i)^(debug|trace|verbose|dbg|trc|vrb|fine|finest|all)[0-4]?$")'
       
-      # Filter by log body content - catches logs with debug keywords in message
-      filter/body_keywords:
-        error_mode: ignore
-        logs:
-          log_record:
-            # Match debug/verbose keywords at start of log body
-            # Common patterns: "[DEBUG]", "[TRACE]", "DEBUG:", "TRACE:", etc.
-            - 'IsMatch(body.string, "(?i)^\\s*\\[?(debug|trace|verbose|dbg|trc)\\]?[:;\\s-]")'
-            # Match log4j/logback style with level in brackets or parentheses
-            - 'IsMatch(body.string, "(?i)[\\[\\(](debug|trace|verbose)[\\]\\)]")'
-            # Match common logging framework patterns with timestamp followed by level
-            - 'IsMatch(body.string, "(?i)\\d{2,4}[-/:]\\d{2}[-/:]\\d{2}.*?(debug|trace|verbose)")'
+      # # Filter by log body content - catches logs with debug keywords in message
+      # filter/body_keywords:
+      #   error_mode: ignore
+      #   logs:
+      #     log_record:
+      #       # Match debug/verbose keywords at start of log body
+      #       # Common patterns: "[DEBUG]", "[TRACE]", "DEBUG:", "TRACE:", etc.
+      #       - 'IsMatch(body.string, "(?i)^\\s*\\[?(debug|trace|verbose|dbg|trc)\\]?[:;\\s-]")'
+      #       # Match log4j/logback style with level in brackets or parentheses
+      #       - 'IsMatch(body.string, "(?i)[\\[\\(](debug|trace|verbose)[\\]\\)]")'
+      #       # Match common logging framework patterns with timestamp followed by level
+      #       - 'IsMatch(body.string, "(?i)\\d{2,4}[-/:]\\d{2}[-/:]\\d{2}.*?(debug|trace|verbose)")'
       
-      # Filter by attributes - catches logs with debug indicators in attributes
-      filter/debug_attributes:
-        error_mode: ignore
-        logs:
-          log_record:
-            # Filter logs with log.level or level attributes set to debug/trace/verbose
-            - 'IsMatch(attributes["log.level"], "(?i)^(debug|trace|verbose)$")'
-            - 'IsMatch(attributes["level"], "(?i)^(debug|trace|verbose)$")'
-            - 'IsMatch(attributes["severity"], "(?i)^(debug|trace|verbose)$")'
+      # # Filter by attributes - catches logs with debug indicators in attributes
+      # filter/debug_attributes:
+      #   error_mode: ignore
+      #   logs:
+      #     log_record:
+      #       # Filter logs with log.level or level attributes set to debug/trace/verbose
+      #       - 'IsMatch(attributes["log.level"], "(?i)^(debug|trace|verbose)$")'
+      #       - 'IsMatch(attributes["level"], "(?i)^(debug|trace|verbose)$")'
+      #       - 'IsMatch(attributes["severity"], "(?i)^(debug|trace|verbose)$")'
   
-      resource/remove-fields:
-        attributes:
-        - action: delete
-          key: container.image.name
+      # resource/remove-fields:
+      #   attributes:
+      #   - action: delete
+      #     key: container.image.name
 
-      transform/reduce_2:
-        error_mode: silent
-        metric_statements:
-        - context: resource
-          statements:
-          - delete_key(resource.attributes, "container.image.name")
+      # transform/reduce_2:
+      #   error_mode: silent
+      #   metric_statements:
+      #   - context: resource
+      #     statements:
+      #     - delete_key(resource.attributes, "container.image.name")
         
     service:
       
@@ -162,47 +170,47 @@ opentelemetry-agent:
         encoding: otlp_json
     processors:
       # Transform processor to extract severity from log body
-      transform/extract_severity_from_body:
-        error_mode: ignore
-        log_statements:
-          - context: log
-            statements:
-              # Extract FATAL from body (case-insensitive) - highest priority
-              - set(severity_text, "FATAL") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)fatal")
-              - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)fatal")
+      # transform/extract_severity_from_body:
+      #   error_mode: ignore
+      #   log_statements:
+      #     - context: log
+      #       statements:
+      #         # Extract FATAL from body (case-insensitive) - highest priority
+      #         - set(severity_text, "FATAL") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)fatal")
+      #         - set(severity_number, SEVERITY_NUMBER_FATAL) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)fatal")
               
-              # Extract ERROR from body (case-insensitive)
-              - set(severity_text, "ERROR") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)error")
-              - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)error")
+      #         # Extract ERROR from body (case-insensitive)
+      #         - set(severity_text, "ERROR") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)error")
+      #         - set(severity_number, SEVERITY_NUMBER_ERROR) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)error")
               
-              # Extract WARN from body (case-insensitive)
-              - set(severity_text, "WARN") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)warn")
-              - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)warn")
+      #         # Extract WARN from body (case-insensitive)
+      #         - set(severity_text, "WARN") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)warn")
+      #         - set(severity_number, SEVERITY_NUMBER_WARN) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)warn")
               
-              # Extract INFO from body (case-insensitive)
-              - set(severity_text, "INFO") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)info")
-              - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)info")
+      #         # Extract INFO from body (case-insensitive)
+      #         - set(severity_text, "INFO") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)info")
+      #         - set(severity_number, SEVERITY_NUMBER_INFO) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)info")
               
-              # Extract DEBUG from body (case-insensitive)
-              - set(severity_text, "DEBUG") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)debug")
-              - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)debug")
+      #         # Extract DEBUG from body (case-insensitive)
+      #         - set(severity_text, "DEBUG") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)debug")
+      #         - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)debug")
               
-              # Extract VERBOSE from body (case-insensitive)
-              - set(severity_text, "VERBOSE") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)verbose")
-              - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)verbose")
+      #         # Extract VERBOSE from body (case-insensitive)
+      #         - set(severity_text, "VERBOSE") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)verbose")
+      #         - set(severity_number, SEVERITY_NUMBER_DEBUG) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)verbose")
               
-              # Extract TRACE from body (case-insensitive)
-              - set(severity_text, "TRACE") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)trace")
-              - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)trace")
+      #         # Extract TRACE from body (case-insensitive)
+      #         - set(severity_text, "TRACE") where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)trace")
+      #         - set(severity_number, SEVERITY_NUMBER_TRACE) where severity_number == SEVERITY_NUMBER_UNSPECIFIED and IsMatch(body.string, "(?i)trace")
       
-      # Filter by severity number - drops logs below INFO level
-      filter/severity_number:
-        error_mode: ignore
-        logs:
-          log_record:
-            # Filter out TRACE (1-4) and DEBUG (5-8) severity levels
-            # Only INFO (9+), WARN (13+), ERROR (17+), and FATAL (21+) logs pass through
-            - 'severity_number < SEVERITY_NUMBER_INFO'
+      # # Filter by severity number - drops logs below INFO level
+      # filter/severity_number:
+      #   error_mode: ignore
+      #   logs:
+      #     log_record:
+      #       # Filter out TRACE (1-4) and DEBUG (5-8) severity levels
+      #       # Only INFO (9+), WARN (13+), ERROR (17+), and FATAL (21+) logs pass through
+      #       - 'severity_number < SEVERITY_NUMBER_INFO'
       
       # Filter by severity text - catches logs with debug/verbose indicators in severity field
       
@@ -212,19 +220,19 @@ opentelemetry-agent:
           key: container.image.name
         - action: delete
           key: container_image_name
-      transform/reduce_2:
-        error_mode: silent
-        metric_statements:
-        - context: resource
-          statements:
-          - delete_key(attributes, "сontainer.image.name")
+      # transform/reduce_2:
+      #   error_mode: silent
+      #   metric_statements:
+      #   - context: resource
+      #     statements:
+      #     - delete_key(attributes, "сontainer.image.name")
     service:
       pipelines:
         logs:
-          processors: [transform/extract_severity_from_body, filter/severity_number]
+          # processors: [transform/extract_severity_from_body, filter/severity_number]
           exporters: [kafka/logs]
         metrics:
-          processors: [resource/remove-fields, transform/reduce_2]
+          processors: [resource/remove-fields]
         # traces/db2:
         #   exporters:
         #   - spanmetrics/db2

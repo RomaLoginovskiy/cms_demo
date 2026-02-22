@@ -29,6 +29,13 @@ spec:
             name: backend
             port:
               number: 8080
+      - path: /metrics
+        pathType: Prefix
+        backend:
+          service:
+            name: backend
+            port:
+              number: 8080
       # OTLP HTTP endpoint for frontend RUM traces
       - path: /v1/traces
         pathType: Prefix

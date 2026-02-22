@@ -259,7 +259,7 @@ minikube addons enable ingress
 
 ```bash
 # Build images
-cd backend && docker build -t demo-cms-backend:latest -f DemoCms.Api/Dockerfile .
+cd backend && docker build -t demo-cms-backend:latest -f Dockerfile .
 cd frontend && docker build -t demo-cms-frontend:latest -f Dockerfile .
 
 # Load into minikube

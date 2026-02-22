@@ -8,6 +8,8 @@ resources:
   - persistent-volumes.yaml
   - kafka-deployment.yaml
   - backend-deployment.yaml
+  - backend-serviceMonitor.yaml
+  - prometheus-role.yaml
   - media-worker-deployment.yaml
   - frontend-deployment.yaml
   - otel-agent-service.yaml
