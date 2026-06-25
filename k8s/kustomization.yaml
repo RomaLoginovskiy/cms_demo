@@ -5,16 +5,21 @@ namespace: cms-demo
 
 resources:
   - namespace.yaml
-  - persistent-volumes.yaml
-  - kafka-deployment.yaml
   - backend-deployment.yaml
-  - backend-serviceMonitor.yaml
-  - prometheus-role.yaml
-  - media-worker-deployment.yaml
   - frontend-deployment.yaml
+  - kafka-deployment.yaml
+  - media-worker-deployment.yaml
   - otel-agent-service.yaml
+  - network-policy.yaml
+  - canvas-backend-deployment.yaml
+  - canvas-frontend-deployment.yaml
+  - canvas-load-configmap.yaml
+  - canvas-load-statefulset.yaml
+  - canvas-load-service.yaml
   - ingress.yaml
 
-commonLabels:
-  project: demo-cms
-  managed-by: kustomize
+labels:
+  - pairs:
+      project: demo-cms
+      managed-by: kustomize
+    includeSelectors: false

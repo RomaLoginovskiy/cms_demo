@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["jest", "node"]
+  },
+  "include": [
+    "src/App.tsx",
+    "src/index.tsx",
+    "src/setupTests.ts",
+    "src/styles.css",
+    "src/whiteboard/**/*.ts",
+    "src/whiteboard/**/*.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx",
+    "tests/**/*.ts",
+    "playwright.config.ts"
+  ]
+}

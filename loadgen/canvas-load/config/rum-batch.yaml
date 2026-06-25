@@ -1,0 +1,9 @@
+run:
+  paused: false
+  duration: 15m
+users:
+  count: 50
+rum_batch:
+  enabled: true
+  preset: uc1_critical_spike
+  append_to_all_navigations: true

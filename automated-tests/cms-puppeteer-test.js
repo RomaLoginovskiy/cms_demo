@@ -8,8 +8,9 @@ class CMSTestRunner {
   constructor() {
     this.browser = null;
     this.page = null;
+    this.failures = [];
     this.config = {
-      baseUrl: process.env.CMS_BASE_URL || 'http://localhost', // Updated for Kubernetes deployment
+      baseUrl: process.env.CMS_BASE_URL || 'http://localhost/cms',
       apiUrl: process.env.CMS_API_URL || 'http://localhost/api', // Added API URL
       headless: process.env.HEADLESS === 'true' || false, // Set to true for headless mode
       timeout: 30000,
@@ -99,6 +100,18 @@ class CMSTestRunner {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  async failTest(name, error, screenshotName) {
+    const message = error instanceof Error ? error.message : String(error);
+    this.failures.push(`${name}: ${message}`);
+    console.error(`❌ ${name} failed: ${message}`);
+
+    if (screenshotName) {
+      await this.takeScreenshot(screenshotName);
+    }
+
+    throw error;
+  }
+
   async testApiHealth() {
     console.log('\n🏥 Testing API Health...');
     
@@ -116,10 +129,10 @@ class CMSTestRunner {
       if (response.ok) {
         console.log(`✅ API is responding (status: ${response.status})`);
       } else {
-        console.log(`⚠️ API returned status: ${response.status}`);
+        throw new Error(`API returned status: ${response.status}${response.error ? ` (${response.error})` : ''}`);
       }
     } catch (error) {
-      console.log('⚠️ API health check failed:', error.message);
+      await this.failTest('API health check', error, 'api-health-error');
     }
   }
 
@@ -156,13 +169,10 @@ class CMSTestRunner {
           console.log('⚠️ Response is not an array');
         }
       } else {
-        console.log(`⚠️ Tags API returned status: ${response.status}`);
-        if (response.error) {
-          console.log(`⚠️ Error: ${response.error}`);
-        }
+        throw new Error(`Tags API returned status: ${response.status}${response.error ? ` (${response.error})` : ''}`);
       }
     } catch (error) {
-      console.log('⚠️ Tags API test failed:', error.message);
+      await this.failTest('Tags API test', error, 'tags-api-error');
     }
   }
 
@@ -250,8 +260,7 @@ class CMSTestRunner {
       console.log('✅ Home page test completed');
       
     } catch (error) {
-      console.error('❌ Home page test failed:', error.message);
-      await this.takeScreenshot('home-page-error');
+      await this.failTest('Home page test', error, 'home-page-error');
     }
   }
 
@@ -350,8 +359,7 @@ class CMSTestRunner {
       console.log('✅ Upload page test completed');
       
     } catch (error) {
-      console.error('❌ Upload page test failed:', error.message);
-      await this.takeScreenshot('upload-page-error');
+      await this.failTest('Upload page test', error, 'upload-page-error');
     }
   }
 
@@ -518,8 +526,7 @@ class CMSTestRunner {
       console.log('✅ Media modal tags test completed');
       
     } catch (error) {
-      console.error('❌ Media modal tags test failed:', error.message);
-      await this.takeScreenshot('modal-tags-error');
+      await this.failTest('Media modal tags test', error, 'modal-tags-error');
     }
   }
 
@@ -627,8 +634,7 @@ class CMSTestRunner {
       console.log('✅ Gallery tag filter test completed');
       
     } catch (error) {
-      console.error('❌ Gallery tag filter test failed:', error.message);
-      await this.takeScreenshot('gallery-filter-error');
+      await this.failTest('Gallery tag filter test', error, 'gallery-filter-error');
     }
   }
 
@@ -668,8 +674,7 @@ class CMSTestRunner {
       console.log('✅ About page test completed');
       
     } catch (error) {
-      console.error('❌ About page test failed:', error.message);
-      await this.takeScreenshot('about-page-error');
+      await this.failTest('About page test', error, 'about-page-error');
     }
   }
 
@@ -714,8 +719,7 @@ class CMSTestRunner {
       console.log('✅ Navigation flow test completed');
       
     } catch (error) {
-      console.error('❌ Navigation test failed:', error.message);
-      await this.takeScreenshot('navigation-error');
+      await this.failTest('Navigation test', error, 'navigation-error');
     }
   }
 
@@ -798,9 +802,44 @@ class CMSTestRunner {
       
     } catch (error) {
       console.error('❌ Test suite failed:', error.message);
+      throw error;
     } finally {
       await this.cleanup();
     }
+  }
+
+  async performContinuousTests(duration) {
+    const endTime = Date.now() + duration;
+    let cycle = 0;
+
+    console.log(`\n🔄 Starting continuous testing for ${Math.round(duration / 1000 / 60)} minutes...`);
+    console.log('=' .repeat(50));
+
+    while (Date.now() < endTime) {
+      cycle++;
+      const remaining = Math.round((endTime - Date.now()) / 1000 / 60);
+      console.log(`\n🔁 Cycle #${cycle} — ~${remaining} min remaining`);
+      console.log('-'.repeat(50));
+
+      try {
+        await this.testApiHealth();
+        await this.testHomePage();
+        await this.testUploadPage();
+        await this.testMediaModalTags();
+        await this.testGalleryTagFilter();
+        await this.testNavigation();
+        console.log(`✅ Cycle #${cycle} completed`);
+      } catch (error) {
+        console.error(`❌ Cycle #${cycle} failed: ${error.message}`);
+      }
+
+      if (Date.now() < endTime) {
+        await this.delay(5000);
+      }
+    }
+
+    console.log(`\n✅ Continuous testing completed after ${cycle} cycle(s)`);
+    console.log('=' .repeat(50));
   }
 
   async cleanup() {
@@ -869,7 +908,7 @@ Examples:
       return runner.cleanup();
     }).catch(error => {
       console.error('❌ Tag tests failed:', error);
-      runner.cleanup();
+      return runner.cleanup().finally(() => process.exit(1));
     });
   } else {
     const continuousIndex = args.indexOf('--continuous');
@@ -882,10 +921,13 @@ Examples:
         return runner.cleanup();
       }).catch(error => {
         console.error('❌ Continuous testing failed:', error);
-        runner.cleanup();
+        return runner.cleanup().finally(() => process.exit(1));
       });
     } else {
-      runner.runAllTests();
+      runner.runAllTests().catch(error => {
+        console.error('❌ CMS test runner failed:', error);
+        process.exit(1);
+      });
     }
   }
 }

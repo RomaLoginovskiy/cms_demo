@@ -1,24 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend
+  name: cms-backend
   namespace: cms-demo
   labels:
-    app: backend
+    app: cms-backend
     component: api
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: backend
+      app: cms-backend
   template:
     metadata:
       labels:
-        app: backend
+        app: cms-backend
         component: api
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-      - name: backend
+      - name: cms-backend
         image: demo-cms-backend:latest
         imagePullPolicy: IfNotPresent
         ports:
@@ -40,8 +45,8 @@ spec:
           value: "kafka:9092"
         - name: MediaEvents__Topic
           value: "media.uploaded"
-        - name: MediaEvents__PublicBaseUrl
-          value: "http://backend:8080"
+        - name: OpenTelemetry__EnablePrometheusExporter
+          value: "true"
         - name: NODE
           valueFrom:
             fieldRef:
@@ -49,13 +54,21 @@ spec:
         - name: OpenTelemetry__OtlpEndpoint
           value: "http://$(NODE):4318"
         volumeMounts:
-        - name: backend-data
+        - name: cms-backend-data
           mountPath: /app/data
-        - name: backend-uploads
+        - name: cms-backend-uploads
           mountPath: /app/uploads
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1654
+          runAsGroup: 1654
         resources:
           requests:
-            memory: "256Mi"
+            memory: "128Mi"
             cpu: "250m"
           limits:
             memory: "512Mi"
@@ -77,25 +90,25 @@ spec:
           timeoutSeconds: 3
           failureThreshold: 3
       volumes:
-      - name: backend-data
+      - name: cms-backend-data
         persistentVolumeClaim:
           claimName: backend-data-pvc
-      - name: backend-uploads
+      - name: cms-backend-uploads
         persistentVolumeClaim:
           claimName: backend-uploads-pvc
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: backend
+  name: cms-backend
   namespace: cms-demo
   labels:
-    app: backend
+    app: cms-backend
     component: api
 spec:
   type: ClusterIP
   selector:
-    app: backend
+    app: cms-backend
   ports:
   - port: 8080
     targetPort: 8080

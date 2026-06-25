@@ -81,33 +81,21 @@ kind load docker-image demo-cms-frontend:latest
 
 ## Deployment
 
-### Option 1: Deploy all resources at once
+### Option 1: Deploy with PVC-safe script
 ```bash
-kubectl apply -k k8s/
+./k8s/deploy.sh
 ```
 
-### Option 2: Deploy resources individually
+### Option 2: Apply non-storage resources manually
 ```bash
 # 1. Create namespace
 kubectl apply -f k8s/namespace.yaml
 
-# 2. Create persistent volumes
-kubectl apply -f k8s/persistent-volumes.yaml
+# 2. Create missing PVCs without patching existing bound claims
+./k8s/deploy.sh --skip-build --no-images
 
-# 3. Deploy Kafka
-kubectl apply -f k8s/kafka-deployment.yaml
-
-# 4. Deploy backend
-kubectl apply -f k8s/backend-deployment.yaml
-
-# 5. Deploy media worker
-kubectl apply -f k8s/media-worker-deployment.yaml
-
-# 6. Deploy frontend
-kubectl apply -f k8s/frontend-deployment.yaml
-
-# 7. Deploy ingress
-kubectl apply -f k8s/ingress.yaml
+# Directly applying k8s/persistent-volumes.yaml can fail on existing
+# bound PVCs because Kubernetes makes storageClassName immutable.
 ```
 
 ## Verification
@@ -159,6 +147,7 @@ minikube tunnel
 Then access:
 - Frontend: http://localhost
 - Backend API: http://localhost/api
+- Load generator UI: http://localhost:8090 (LoadBalancer service `canvas-load`)
 
 ### For kind or other local clusters
 ```bash
@@ -214,14 +203,18 @@ Media worker configuration is in `k8s/media-worker-deployment.yaml`:
 - `Llama__BaseUrl`: LLaMA HTTP endpoint
 - `Api__BaseUrl`: Demo CMS API base URL
 
-Frontend configuration is in `k8s/frontend-deployment.yaml`:
-- `REACT_APP_API_URL`: API base URL (uses ingress routing)
+Frontend configuration is split between `k8s/frontend-deployment.yaml` and `k8s/canvas-frontend-deployment.yaml`:
+- `BACKEND_HOST`: nginx upstream for the owning backend service.
+- `CMS_HOST`: canvas frontend upstream for CMS media routes.
 
 ### Storage
 
-The backend uses two PersistentVolumeClaims:
-- `backend-data-pvc`: 1Gi for SQLite database
-- `backend-uploads-pvc`: 10Gi for uploaded files
+The backends use PersistentVolumeClaims:
+- `backend-data-pvc`: 1Gi for CMS SQLite database. The name is preserved for upgrade compatibility.
+- `backend-uploads-pvc`: 10Gi for CMS uploaded files. The name is preserved for upgrade compatibility.
+- `canvas-backend-data-pvc`: 1Gi for canvas SQLite database.
+
+`deploy.sh` creates missing PVCs individually and leaves existing PVCs unchanged. This avoids Kubernetes immutable field errors when a cluster default storage class, such as Docker Desktop `hostpath`, has already been assigned to a bound claim.
 
 Adjust sizes in `k8s/persistent-volumes.yaml` as needed.
 
@@ -264,8 +257,57 @@ kubectl get pvc -n cms-demo
 kubectl get pv
 
 # Exec into backend pod to check mounts
-kubectl exec -it <backend-pod-name> -n cms-demo -- ls -la /app/data /app/uploads
+kubectl exec -it <cms-backend-pod-name> -n cms-demo -- ls -la /app/data /app/uploads
 ```
+
+## Canvas performance simulation (RUM validation)
+
+Opt-in client-side lag simulation for the whiteboard (`canvas-frontend`). **Not enabled** in the default [`canvas-frontend-deployment.yaml`](canvas-frontend-deployment.yaml).
+
+### Scenario S1 — 5–6s interaction lag
+
+Applies `no_optimistic` mode (~5.5s hub delay before UI updates).
+
+```bash
+kubectl apply -k k8s/
+kubectl patch deployment canvas-frontend -n cms-demo --type=json \
+  --patch-file k8s/patches/canvas-frontend-lag-env.json
+```
+
+Env: `CANVAS_LAG_SIM_MODE=no_optimistic`, `CANVAS_LAG_SIM_DELAY_MS=5500`, `CORALOGIX_ENVIRONMENT=load-test`.
+
+### Scenario S2 — large board text-edit freeze (~1,300 shapes)
+
+1. Seed the shared board via **canvas-load admin UI** (http://localhost:8090 → **Board prep (S2)** → **Prepare S2**, or **Seed loadgen-large (1300)** then **Large board** scenario). Pause load before seeding.
+
+   CLI alternative (from a machine that can reach canvas API):
+
+```bash
+cd loadgen/canvas-load && npm install
+npm run seed-board -- --base-url http://<canvas-frontend-host> --count 1300 --board-name loadgen-large
+```
+
+2. Apply render-stress overlay (optional fallback if natural O(n) render is insufficient):
+
+```bash
+kubectl apply -k k8s/
+kubectl patch deployment canvas-frontend -n cms-demo --type=json \
+  --patch-file k8s/patches/canvas-frontend-large-board-env.json
+```
+
+3. Run loadgen `large_board` scenario (canvas-load UI :8090 → Resume) or edit text manually on the seeded board.
+
+### Coralogix validation (coralogix-server-watcher MCP)
+
+Pre-flight: `read_rum_log_intro_docs_v1`, `read_dataprime_intro_docs_v1`, `get_datetime`.
+
+See [docs/canvas-perf-rum-validation.md](../docs/canvas-perf-rum-validation.md) for full DataPrime queries (filter `$l.subsystemname == 'cx_rum'`, custom measurements under `$d.cx_rum.custom_measurement_context.*`).
+
+**S1 pass:** p95 `whiteboard_interaction_commit_duration_ms` ≥ ~4950ms when `DELAY_MS=5500`; `canvas_lag_sim_active` present.
+
+**S2 pass:** p95 `whiteboard_text_edit_commit_duration_ms` ≥ 450ms; `whiteboard_board_shape_count` ≥ 1000.
+
+**Baseline** (sim off, small board): p95 interaction commit &lt; 500ms, text edit &lt; 100ms.
 
 ## Cleanup
 
@@ -286,7 +328,7 @@ For production deployments:
 2. **Configure resource limits** appropriately
 3. **Enable TLS/SSL** with cert-manager
 4. **Use secrets** for sensitive data (connection strings, API keys)
-5. **Set up monitoring** with Prometheus and Grafana
+5. **Set up monitoring** with Coralogix (see `coralogix/`)
 6. **Configure horizontal pod autoscaling**
 7. **Use proper image tags** (not `latest`)
 8. **Set up backup strategy** for persistent volumes

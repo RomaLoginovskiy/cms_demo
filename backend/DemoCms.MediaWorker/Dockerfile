@@ -1,5 +1,5 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
 
 # Copy solution file
@@ -20,14 +20,16 @@ COPY . .
 RUN dotnet publish DemoCms.MediaWorker/DemoCms.MediaWorker.csproj -c Release -o /app/publish
 
 # Runtime stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/runtime:9.0 AS runtime
 WORKDIR /app
 
 # Copy published application
 COPY --from=build /app/publish .
+RUN chown -R app:app /app
 
 # Set environment variables
 ENV DOTNET_ENVIRONMENT=Production
 
 # Run the application
+USER app
 ENTRYPOINT ["dotnet", "DemoCms.MediaWorker.dll"]

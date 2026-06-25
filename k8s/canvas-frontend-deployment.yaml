@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas-frontend
+  namespace: cms-demo
+  labels:
+    app: canvas-frontend
+    component: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canvas-frontend
+  template:
+    metadata:
+      labels:
+        app: canvas-frontend
+        component: web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: canvas-frontend
+        image: demo-canvas-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: BACKEND_HOST
+          value: "canvas-backend:8080"
+        - name: CMS_HOST
+          value: "cms-backend:8080"
+        - name: CORALOGIX_RUM_PUBLIC_KEY
+          value: cxtp_vQcYVqYK8dEzs3c6EEmJ99dfC4FrlL
+        - name: CORALOGIX_RUM_DOMAIN
+          value: "eu1.coralogix.com"
+        - name: CORALOGIX_APPLICATION
+          value: "cms-demo"
+        - name: CORALOGIX_SUBSYSTEM
+          value: "canvas-frontend"
+        - name: CORALOGIX_ORGANIZATION_NAME
+          value: "Acme Digital Works"
+        - name: CORALOGIX_ENVIRONMENT
+          value: "production"
+        - name: CORALOGIX_APP_VERSION
+          value: "dev"
+        - name: CORALOGIX_RUM_SESSION_SAMPLE_RATE
+          value: "100"
+        - name: CORALOGIX_OTLP_TRACES_URL
+          value: "/v1/traces"
+        - name: RUM_DEMO_ENABLED
+          value: "false"
+        - name: RUM_DEMO_ALLOW_PROD
+          value: "false"
+        - name: RUM_DEMO_PANEL
+          value: "false"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: canvas-frontend
+  namespace: cms-demo
+  labels:
+    app: canvas-frontend
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: canvas-frontend
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http

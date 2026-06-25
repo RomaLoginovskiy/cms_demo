@@ -157,7 +157,9 @@ To configure Coralogix:
 
 ```bash
 helm repo add coralogix https://cgx.jfrog.io/artifactory/coralogix-charts-virtual
-helm upgrade --install coralogix-agent coralogix/coralogix-agent -f coralogix/values.yaml
+helm upgrade --install otel-coralogix-integration coralogix/otel-integration \
+  -n cms-demo -f coralogix/values.yaml \
+  --post-renderer coralogix/post-renderer.sh
 ```
 
 ## Development

@@ -1,0 +1,21 @@
+# Optional: apply separately to expose admin UI at /loadgen
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: canvas-load-ingress
+  namespace: cms-demo
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - path: /loadgen
+            pathType: Prefix
+            backend:
+              service:
+                name: canvas-load
+                port:
+                  number: 8090

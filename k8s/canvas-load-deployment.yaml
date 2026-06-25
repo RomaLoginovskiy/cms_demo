@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas-load
+  namespace: cms-demo
+  labels:
+    app: canvas-load
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: canvas-load
+  template:
+    metadata:
+      labels:
+        app: canvas-load
+    spec:
+      containers:
+        - name: canvas-load
+          image: demo-canvas-load:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+              hostPort: 8090
+              name: http
+            - containerPort: 9091
+              name: metrics
+          env:
+            - name: CANVAS_LOAD_IN_CLUSTER
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: "6"
+              memory: 512Mi
+            limits:
+              cpu: "6"
+              memory: 6Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8090
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            name: canvas-load-config

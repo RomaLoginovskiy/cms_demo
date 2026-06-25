@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: canvas-load-headless
+  namespace: cms-demo
+  labels:
+    app: canvas-load
+spec:
+  clusterIP: None
+  selector:
+    app: canvas-load
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: canvas-load
+  namespace: cms-demo
+  labels:
+    app: canvas-load
+spec:
+  serviceName: canvas-load-headless
+  # Keep replicas in sync with shard.count in canvas-load-config ConfigMap
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: canvas-load
+  template:
+    metadata:
+      labels:
+        app: canvas-load
+    spec:
+      containers:
+        - name: canvas-load
+          image: demo-canvas-load:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+              name: http
+            - containerPort: 9091
+              name: metrics
+          env:
+            - name: CANVAS_LOAD_IN_CLUSTER
+              value: "true"
+            - name: CANVAS_LOAD_LEADER_URL
+              value: "http://canvas-load-0.canvas-load-headless.cms-demo.svc.cluster.local:8090"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: canvas-load-config

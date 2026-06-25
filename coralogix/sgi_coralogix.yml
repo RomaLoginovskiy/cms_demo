@@ -1,0 +1,159 @@
+global:
+  domain: "eu2.coralogix.com"
+  clusterName: "core-test"
+  defaultApplicationName: "core"
+  defaultSubsystemName: "test"
+  logLevel: "warn"
+  collectionInterval: "30s"
+
+opentelemetry-agent:
+  enabled: true
+  mode: daemonset
+  presets:
+    kubernetesAttributes:
+      enabled: true
+    logsCollection:
+      enabled: true
+      includeCollectorLogs: false
+    hostMetrics:
+      enabled: true
+    kubeletMetrics:
+      enabled: true
+    spanMetrics:
+      enabled: true
+      extraDimensions:
+        - name: k8s.pod.name
+        - name: k8s.namespace.name
+        - name: k8s.deployment.name
+      transformStatements:
+        - set(attributes["db.namespace"], attributes["db.name"]) where attributes["db.namespace"] == nil
+        - set(attributes["db.namespace"], attributes["server.address"]) where attributes["db.namespace"] == nil
+        - set(attributes["db.namespace"], attributes["network.peer.name"]) where attributes["db.namespace"] == nil
+        - set(attributes["db.namespace"], attributes["net.peer.name"]) where attributes["db.namespace"] == nil
+        - set(attributes["db.namespace"], attributes["db.system"]) where attributes["db.namespace"] == nil
+        - set(attributes["db.operation.name"], attributes["db.operation"]) where attributes["db.operation.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.sql.table"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.cassandra.table"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.mongodb.collection"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.redis.database_index"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.elasticsearch.path_parts.index"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["db.cosmosdb.container"]) where attributes["db.collection.name"] == nil
+        - set(attributes["db.collection.name"], attributes["aws_dynamodb.table_names"]) where attributes["db.collection.name"] == nil
+      transformStatements:
+        - replace_pattern(attributes["db.query.text"], "\\d+", "?") # removes potential IDs for the attribute
+        - set(attributes["span.duration_ns"], span.end_time_unix_nano - span.start_time_unix_nano) # stores the span duration in ns in an attribute
+      serviceVersion:
+        enabled: true
+      errorTracking:
+        enabled: true
+      dbMetrics:
+        enabled: true
+        serviceVersion:
+          enabled: true
+    transactions:
+      enabled: true
+      waitDuration: 30s      
+    profilesCollection:
+      enabled: true
+  targetAllocator:
+    enabled: true
+    prometheusCR:
+      enabled: true
+      podMonitorSelector: {}
+      serviceMonitorSelector: {}
+
+opentelemetry-cluster-collector:
+  enabled: true
+  mode: deployment
+  presets:
+    fleetManagement:
+      enabled: true
+      agentType: "cluster-collector"
+      clusterName: "{{.Values.global.clusterName}}"
+      # Custom non-identifying attributes to add to the agent description.
+      # These attributes will be included in the non_identifying_attributes section
+      # for both supervisor and OpAMP extensions.
+      # Example:
+      #   customAttributes:
+      #     environment: "production"
+      #     team: "platform"
+      customAttributes: {}
+    clusterMetrics:
+      enabled: true
+      collectionInterval: "{{.Values.global.collectionInterval}}"
+      customMetrics:
+        enabled: true
+    kubernetesEvents:
+      enabled: true
+    kubernetesApiServerMetrics:
+      enabled: true
+      scrapeAll: false
+    otlpReceiver:
+      enabled: true
+    kubernetesAttributes:
+      enabled: true
+      podUid:
+        enabled: false
+      podStartTime:
+        enabled: false
+    # Configures resource detection processors to add system and environment information.
+    # Also configures volumes and volume mounts for the collector.
+    resourceDetection:
+      enabled: true
+      k8sNodeName:
+        enabled: false
+    metadata:
+      enabled: true
+      clusterName: "{{.Values.global.clusterName}}"
+      integrationName: "coralogix-integration-helm"
+    # Removes uids and other uneeded attributes from metric resources.
+    # This reduces target_info cardinality.
+    reduceResourceAttributes:
+      enabled: false
+    # Enables Kubernetes Resource collection for for resource catalog
+    kubernetesResources:
+      enabled: true
+      # OTTL filter statements for filtering out resources by name regex
+      filterStatements:
+        # Filter out pods given a regex. This example is for telemetrygen pods.
+        # - 'body["object"]["kind"] == "Pod" and IsMatch(body["object"]["metadata"]["name"], "telemetrygen.*")'
+        # - 'body["kind"] == "Pod" and IsMatch(body["metadata"]["name"], "telemetrygen.*")'
+    # Configures the collector to collect its own metrics using Prometheus receiver.
+    # Adds the prometheus receiver to the metrics pipeline with a scrape config
+    # targeting the collector's metrics endpoint.
+    # Also adds a transform processor to clean up metric names and attributes.
+
+kube-state-metrics:
+  enabled: true
+
+opentelemetry-agent-windows:
+  enabled: false
+
+opentelemetry-ebpf-instrumentation:
+  enabled: true
+
+opentelemetry-ebpf-profiler:
+  enabled: true
+  mode: daemonset
+  presets:
+    profilesK8sAttributes:
+      enabled: true
+    otlpExporter:
+      enabled: true
+      endpoint: "ingress.{{ .Values.global.domain }}:443"
+      headers:
+        Authorization: "Bearer ${env:CORALOGIX_PRIVATE_KEY}"
+        CX-Application-Name: "core"
+        CX-Subsystem-Name: "test-profiling"
+  extraEnvs:
+    - name: CORALOGIX_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: coralogix-keys
+          key: PRIVATE_KEY
+
+opentelemetry-operator:
+  enabled: false
+
+coralogix-operator:
+  enabled: false

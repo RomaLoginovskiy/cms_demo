@@ -5,7 +5,6 @@ import { measurementService } from '../services/measurements';
 import { useComponentMeasurement, useAsyncMeasurement } from '../hooks/useMeasurement';
 import MediaTile from './MediaTile';
 import { Media } from '../types';
-import { CoralogixRum } from '@coralogix/browser';
 
 interface MediaGalleryProps {
   onMediaSelect: (media: Media) => void;
@@ -79,8 +78,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
         // Track gallery metrics
         measurementService.sendCustomMeasurement('gallery_items_loaded', mediaItems.length);
         
-        // Legacy measurement for compatibility
-        CoralogixRum.sendCustomMeasurement('my-page-load', 1000);
+        measurementService.sendCustomMeasurement('media_gallery_page_load_ms', 1000);
       }, {
         component: 'MediaGallery'
       });

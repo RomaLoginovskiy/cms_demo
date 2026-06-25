@@ -10,9 +10,17 @@ namespace DemoCms.Api
         public static IServiceCollection AddElastic(this IServiceCollection services, IConfiguration configuration)
         {
             services.Configure<ElasticOptions>(configuration.GetSection("Elasticsearch"));
+
+            var options = configuration.GetSection("Elasticsearch").Get<ElasticOptions>();
+            if (string.IsNullOrWhiteSpace(options?.Url))
+            {
+                services.AddSingleton<IElasticService, NullElasticService>();
+                services.AddHostedService<ElasticConfigurationWarningHostedService>();
+                return services;
+            }
+
             services.AddHttpClient<IElasticService, ElasticService>(client =>
             {
-                var options = configuration.GetSection("Elasticsearch").Get<ElasticOptions>();
                 client.BaseAddress = new Uri(options.Url);
             });
             return services;

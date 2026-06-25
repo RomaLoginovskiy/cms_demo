@@ -1,10 +1,14 @@
 // Test script to verify Coralogix beforeSend configuration for stats page
 // This file can be imported in console or used for testing
 
-import { CoralogixLogSeverity } from '@coralogix/browser';
+const TestCoralogixLogSeverity = {
+  Info: 'info',
+  Warn: 'warn',
+  Critical: 'critical'
+} as const;
 
 // Mock event for testing the beforeSend function
-const createMockEvent = (pageUrl: string, severity: CoralogixLogSeverity = CoralogixLogSeverity.Info) => ({
+const createMockEvent = (pageUrl: string, severity: string = TestCoralogixLogSeverity.Info) => ({
   page_context: {
     page_url: pageUrl,
     page_url_blueprint: pageUrl,
@@ -40,7 +44,7 @@ const testBeforeSend = (event: any) => {
   if (isStatsPage) {
     // Elevate all events from stats page to critical
     event.event_context = event.event_context || {};
-    event.event_context.severity = CoralogixLogSeverity.Critical;
+    event.event_context.severity = TestCoralogixLogSeverity.Critical;
     
     // Add stats page indicator
     event.labels = {
@@ -62,26 +66,26 @@ export const runTests = () => {
   
   // Test 1: Stats page event should be elevated to Critical
   console.log('\n--- Test 1: Stats page event ---');
-  const statsEvent = createMockEvent('http://localhost:3000/stats', CoralogixLogSeverity.Info);
+  const statsEvent = createMockEvent('http://localhost:3000/stats', TestCoralogixLogSeverity.Info);
   const processedStatsEvent = testBeforeSend(statsEvent);
-  console.log('Original severity:', CoralogixLogSeverity.Info);
+  console.log('Original severity:', TestCoralogixLogSeverity.Info);
   console.log('Processed severity:', processedStatsEvent.event_context.severity);
   console.log('Labels:', processedStatsEvent.labels);
   console.log('Expected: Critical severity with stats indicators ✓');
   
   // Test 2: Non-stats page event should remain unchanged
   console.log('\n--- Test 2: Gallery page event ---');
-  const galleryEvent = createMockEvent('http://localhost:3000/', CoralogixLogSeverity.Info);
+  const galleryEvent = createMockEvent('http://localhost:3000/', TestCoralogixLogSeverity.Info);
   const processedGalleryEvent = testBeforeSend(galleryEvent);
-  console.log('Original severity:', CoralogixLogSeverity.Info);
+  console.log('Original severity:', TestCoralogixLogSeverity.Info);
   console.log('Processed severity:', processedGalleryEvent.event_context.severity);
   console.log('Expected: Info severity unchanged ✓');
   
   // Test 3: Stats page with different severity
   console.log('\n--- Test 3: Stats page warning event ---');
-  const statsWarningEvent = createMockEvent('http://localhost:3000/stats', CoralogixLogSeverity.Warn);
+  const statsWarningEvent = createMockEvent('http://localhost:3000/stats', TestCoralogixLogSeverity.Warn);
   const processedStatsWarningEvent = testBeforeSend(statsWarningEvent);
-  console.log('Original severity:', CoralogixLogSeverity.Warn);
+  console.log('Original severity:', TestCoralogixLogSeverity.Warn);
   console.log('Processed severity:', processedStatsWarningEvent.event_context.severity);
   console.log('Expected: Critical severity (elevated from Warning) ✓');
   

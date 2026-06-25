@@ -1,0 +1,128 @@
+import { LoadConfig } from './types';
+
+export const defaultConfig: LoadConfig = {
+  run: {
+    run_id: null,
+    seed: 42,
+    duration: null,
+    ramp_up: '30s',
+    ramp_down: '10s',
+    scenario: null,
+    cleanup: true,
+    paused: true
+  },
+  target: {
+    frontend_base_url: 'http://localhost',
+    cms_probe_url: null
+  },
+  users: {
+    count: 10,
+    max_contexts_per_pod: 100,
+    think_time_ms: 100,
+    session_pacing: {
+      enabled: false,
+      long_fraction: 0.25,
+      long_think_multiplier: 3.0,
+      normal_profile_max_duration_ms: 180_000,
+      long_profile_max_duration_ms: 720_000
+    }
+  },
+  shard: {
+    count: 1
+  },
+  browser: {
+    headless: true,
+    viewport_width: 1280,
+    viewport_height: 720,
+    action_timeout_ms: 10000,
+    navigation_timeout_ms: 30000,
+    slow_mo_ms: 0,
+    fingerprint: {
+      enabled: true
+    }
+  },
+  boards: {
+    mode: 'shared',
+    shared_board_name: null,
+    shared_board_id: null,
+    pool_size: 5,
+    name_prefix: 'loadgen',
+    precreate_shapes: 0
+  },
+  profiles: {
+    mix: {
+      lurker: 0.28,
+      active_drawer: 0.24,
+      collaborator: 0.28,
+      admin: 0.1,
+      media_placer: 0.05,
+      complex_placer: 0.05
+    },
+    lurker: {
+      mouse_move_interval_ms: 500,
+      mouse_move_probability: 0.1
+    },
+    active_drawer: {
+      tools: ['Rectangle', 'Ellipse', 'Sticky', 'Line'],
+      draw_interval_ms: 800,
+      select_and_move_probability: 0.15,
+      delete_probability: 0.05,
+      max_shapes_before_delete: 80
+    },
+    collaborator: {
+      mouse_move_interval_ms: 33,
+      selection_interval_ms: 2000,
+      property_edit_interval_ms: 5000
+    },
+    admin: {
+      boards_per_session_min: 1,
+      boards_per_session_max: 3,
+      rename_probability: 0.3,
+      delete_probability: 0.2,
+      time_on_list_ms: 5000
+    },
+    media_placer: {
+      search_queries: ['', 'test', 'image'],
+      place_interval_ms: 3000,
+      skip_if_cms_unavailable: true
+    },
+    complex_placer: {
+      templates: [
+        { tab: 'path', name: 'Cross (small)' },
+        { tab: 'mesh3d', name: 'Cube' }
+      ],
+      place_interval_ms: 4000
+    },
+    text_editor: {
+      edit_interval_ms: 2000,
+      min_shapes: 1000
+    }
+  },
+  chaos: {
+    enabled: false,
+    overlay_weight: 0.15,
+    reload_probability: 0.05,
+    invalid_route_probability: 0.03,
+    spam_tools_probability: 0.1,
+    dialog_auto_accept: true
+  },
+  abort: {
+    warmup: '15s',
+    error_rate_threshold: 0.05,
+    max_consecutive_action_errors: 20,
+    on_abort: 'continue'
+  },
+  report: {
+    rolling_interval_s: 60,
+    path: '/reports/summary.json'
+  },
+  control: {
+    listen_port: 8090,
+    metrics_port: 9091
+  },
+  rum_batch: {
+    enabled: false,
+    append_to_all_navigations: true,
+    matrix: []
+  }
+};

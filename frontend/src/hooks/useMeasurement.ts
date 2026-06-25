@@ -20,7 +20,6 @@ export function useComponentMeasurement(componentName: string, labels?: Record<s
     
     measurementService.startTimeMeasurement(`${componentName}_mount_time`, {
       component_name: componentName,
-      render_count: renderCountRef.current.toString(),
       ...labels
     });
 
@@ -48,7 +47,6 @@ export function useComponentMeasurement(componentName: string, labels?: Record<s
     renderCountRef.current++;
     measurementService.sendCustomMeasurement(`component_renders`, 1, {
       component_name: componentName,
-      render_count: renderCountRef.current.toString(),
       ...labels
     });
   });

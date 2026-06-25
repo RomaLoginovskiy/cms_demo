@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Media } from '../types';
 import { mediaApi } from '../services/api';
 import { measurementService } from '../services/measurements';
-import { createTraceparent } from '../services/tracing';
 
 interface MediaTileProps {
   media: Media;
@@ -49,7 +48,7 @@ export default function MediaTile({ media, onClick }: MediaTileProps) {
       }}
     >
       <img
-        src={`${mediaApi.getFileUrl(media.id)}?traceparent=${createTraceparent()}`}
+        src={mediaApi.getFileUrl(media.id)}
         alt={media.title || media.fileName}
         className="media-tile-image"
         loading="lazy"

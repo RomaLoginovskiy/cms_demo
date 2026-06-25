@@ -1,0 +1,26 @@
+namespace Whiteboard.Domain.Contracts;
+
+public sealed record ShapeDto(
+    Guid Id,
+    Guid BoardId,
+    ShapeType Type,
+    double X,
+    double Y,
+    double Width,
+    double Height,
+    double? EndX,
+    double? EndY,
+    string Fill,
+    string Stroke,
+    double StrokeWidth,
+    string? Text,
+    int? FontSize,
+    int ZIndex,
+    Guid? MediaId,
+    string? ImageUrl,
+    string? AltText,
+    string? TemplateId,
+    string? GeometryJson,
+    double? RotationX,
+    double? RotationY,
+    DateTimeOffset UpdatedAt);

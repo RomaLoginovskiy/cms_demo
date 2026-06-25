@@ -1,0 +1,20 @@
+run:
+  scenario: smoke
+  duration: 60s
+
+target:
+  frontend_base_url: http://localhost
+
+users:
+  count: 5
+
+chaos:
+  enabled: false
+
+profiles:
+  mix:
+    lurker: 0.35
+    active_drawer: 0.30
+    collaborator: 0.35
+    admin: 0
+    media_placer: 0

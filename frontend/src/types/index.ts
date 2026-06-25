@@ -10,15 +10,15 @@ export interface Media {
 }
 
 export interface UploadMediaRequest {
-  title?: string;
-  description?: string;
-  tags?: string[];
+  title?: string | undefined;
+  description?: string | undefined;
+  tags?: string[] | undefined;
 }
 
 export interface UpdateMediaRequest {
-  title?: string;
-  description?: string;
-  tags?: string[];
+  title?: string | undefined;
+  description?: string | undefined;
+  tags?: string[] | undefined;
 }
 
 export interface ApiError {

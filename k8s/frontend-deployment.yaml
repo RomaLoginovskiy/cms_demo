@@ -1,37 +1,63 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontend
+  name: cms-frontend
   namespace: cms-demo
   labels:
-    app: frontend
+    app: cms-frontend
     component: web
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: frontend
+      app: cms-frontend
   template:
     metadata:
       labels:
-        app: frontend
+        app: cms-frontend
         component: web
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-      - name: frontend
+      - name: cms-frontend
         image: demo-cms-frontend:latest
         imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 80
+        - containerPort: 8080
           name: http
           protocol: TCP
         env:
-        - name: REACT_APP_API_URL
-          value: "http://localhost/api"
-        - name: REACT_APP_OTLP_ENDPOINT
-          value: "http://localhost/v1/traces"
-        - name: OpenTelemetry__OtlpEndpoint
-          value: "http://$(NODE):4318"
+        - name: BACKEND_HOST
+          value: "cms-backend:8080"
+        - name: CORALOGIX_RUM_PUBLIC_KEY
+          value: cxtp_vQcYVqYK8dEzs3c6EEmJ99dfC4FrlL
+        - name: CORALOGIX_RUM_DOMAIN
+          value: "eu1.coralogix.com"
+        - name: CORALOGIX_APPLICATION
+          value: "cms-demo"
+        - name: CORALOGIX_SUBSYSTEM
+          value: "cms-frontend"
+        - name: CORALOGIX_ORGANIZATION_NAME
+          value: "Acme Digital Works"
+        - name: CORALOGIX_ENVIRONMENT
+          value: "production"
+        - name: CORALOGIX_APP_VERSION
+          value: "dev"
+        - name: CORALOGIX_RUM_SESSION_SAMPLE_RATE
+          value: "100"
+        - name: CORALOGIX_OTLP_TRACES_URL
+          value: "/v1/traces"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 101
+          runAsGroup: 101
         resources:
           requests:
             memory: "128Mi"
@@ -42,7 +68,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: 80
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
           timeoutSeconds: 3
@@ -50,7 +76,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 80
+            port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
@@ -59,17 +85,17 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: frontend
+  name: cms-frontend
   namespace: cms-demo
   labels:
-    app: frontend
+    app: cms-frontend
     component: web
 spec:
   type: ClusterIP
   selector:
-    app: frontend
+    app: cms-frontend
   ports:
   - port: 80
-    targetPort: 80
+    targetPort: 8080
     protocol: TCP
     name: http

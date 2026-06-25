@@ -1,4 +1,10 @@
-import { CoralogixRum, CoralogixLogSeverity } from '@coralogix/browser';
+import {
+  rumAddTiming,
+  rumEndTimeMeasure,
+  rumInfoLog,
+  rumSendCustomMeasurement,
+  rumStartTimeMeasure
+} from '../observability/coralogixRum';
 
 /**
  * Service for managing custom measurements and time tracking using Coralogix SDK
@@ -12,13 +18,11 @@ class MeasurementService {
    * @param labels - Optional labels to add context
    */
   startTimeMeasurement(name: string, labels?: Record<string, string>): void {
-    this.timers.set(name, {
-      startTime: performance.now(),
-      labels
-    });
+    this.timers.set(name, labels
+      ? { startTime: performance.now(), labels }
+      : { startTime: performance.now() });
     
-    // Use the official Coralogix SDK method
-    CoralogixRum.startTimeMeasure(name, labels);
+    rumStartTimeMeasure(sanitizeMeasurementName(name), sanitizeLabels(labels));
   }
 
   /**
@@ -31,11 +35,11 @@ class MeasurementService {
       const duration = performance.now() - timer.startTime;
       this.timers.delete(name);
       
-      // Use the official Coralogix SDK method
-      CoralogixRum.endTimeMeasure(name);
+      const safeName = sanitizeMeasurementName(name);
+      rumEndTimeMeasure(safeName);
       
       // Also send as custom measurement for numeric tracking
-      this.sendCustomMeasurement(`${name}_duration_ms`, duration, timer.labels);
+      this.sendCustomMeasurement(`${safeName}_duration_ms`, duration, timer.labels);
     }
   }
 
@@ -46,15 +50,16 @@ class MeasurementService {
    * @param labels - Optional labels for context
    */
   sendCustomMeasurement(name: string, value: number, labels?: Record<string, string>): void {
-    CoralogixRum.sendCustomMeasurement(name, value);
+    const safeName = sanitizeMeasurementName(name);
+    rumSendCustomMeasurement(safeName, value);
     
     // Add labels if provided by sending a custom log with measurement context
-    if (labels) {
-      CoralogixRum.log(
-        CoralogixLogSeverity.Info, 
-        `Custom measurement: ${name} = ${value}`,
-        { measurement_value: value, measurement_name: name },
-        labels
+    const safeLabels = sanitizeLabels(labels);
+    if (safeLabels) {
+      rumInfoLog(
+        `Custom measurement: ${safeName} = ${value}`,
+        { measurement_value: value, measurement_name: safeName },
+        safeLabels
       );
     }
   }
@@ -66,9 +71,9 @@ class MeasurementService {
    */
   addTiming(name: string, customTime?: number): void {
     if (customTime !== undefined) {
-      CoralogixRum.addTiming(name, customTime);
+      rumAddTiming(name, customTime);
     } else {
-      CoralogixRum.addTiming(name);
+      rumAddTiming(name);
     }
   }
 
@@ -76,7 +81,9 @@ class MeasurementService {
    * Measure and track DOM-related metrics
    */
   measureDOMMetrics(): void {
-    const domContentLoaded = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    const domContentLoaded = typeof performance.getEntriesByType === 'function'
+      ? performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+      : undefined;
     if (domContentLoaded) {
       this.sendCustomMeasurement('dom_content_loaded_time', domContentLoaded.domContentLoadedEventEnd - domContentLoaded.domContentLoadedEventStart);
       this.sendCustomMeasurement('dom_interactive_time', domContentLoaded.domInteractive - domContentLoaded.fetchStart);
@@ -148,7 +155,6 @@ class MeasurementService {
             'resource_load_time', 
             resourceEntry.responseEnd - resourceEntry.startTime,
             {
-              resource_name: resourceEntry.name,
               resource_type: resourceEntry.initiatorType
             }
           );
@@ -159,7 +165,6 @@ class MeasurementService {
               'resource_transfer_size_bytes',
               resourceEntry.transferSize,
               {
-                resource_name: resourceEntry.name,
                 resource_type: resourceEntry.initiatorType
               }
             );
@@ -181,8 +186,8 @@ class MeasurementService {
       'api_response_time_ms',
       duration,
       {
-        api_endpoint: url,
-        http_method: method,
+        api_endpoint: sanitizeEndpoint(url),
+        http_method: method.toUpperCase(),
         status_code: statusCode?.toString() || 'unknown'
       }
     );
@@ -192,8 +197,8 @@ class MeasurementService {
         'api_response_size_bytes',
         responseSize,
         {
-          api_endpoint: url,
-          http_method: method
+          api_endpoint: sanitizeEndpoint(url),
+          http_method: method.toUpperCase()
         }
       );
     }
@@ -203,10 +208,11 @@ class MeasurementService {
    * Track image loading metrics
    */
   trackImageMetrics(imageUrl: string, loadTime: number, naturalWidth: number, naturalHeight: number): void {
-    this.sendCustomMeasurement('image_load_time_ms', loadTime, { image_url: imageUrl });
-    this.sendCustomMeasurement('image_width_pixels', naturalWidth, { image_url: imageUrl });
-    this.sendCustomMeasurement('image_height_pixels', naturalHeight, { image_url: imageUrl });
-    this.sendCustomMeasurement('image_total_pixels', naturalWidth * naturalHeight, { image_url: imageUrl });
+    const labels = { image_source: imageUrl ? 'cms' : 'unknown' };
+    this.sendCustomMeasurement('image_load_time_ms', loadTime, labels);
+    this.sendCustomMeasurement('image_width_pixels', naturalWidth, labels);
+    this.sendCustomMeasurement('image_height_pixels', naturalHeight, labels);
+    this.sendCustomMeasurement('image_total_pixels', naturalWidth * naturalHeight, labels);
   }
 
   /**
@@ -217,7 +223,7 @@ class MeasurementService {
       'file_upload_time_ms',
       uploadTime,
       {
-        file_name: fileName,
+        file_extension: fileExtension(fileName),
         upload_success: success.toString()
       }
     );
@@ -226,7 +232,7 @@ class MeasurementService {
       'file_upload_size_bytes',
       fileSize,
       {
-        file_name: fileName,
+        file_extension: fileExtension(fileName),
         upload_success: success.toString()
       }
     );
@@ -237,7 +243,7 @@ class MeasurementService {
         'file_upload_throughput_mbps',
         throughputMbps,
         {
-          file_name: fileName
+          file_extension: fileExtension(fileName)
         }
       );
     }
@@ -246,3 +252,71 @@ class MeasurementService {
 
 // Export singleton instance
 export const measurementService = new MeasurementService();
+
+function sanitizeLabels(labels?: Record<string, string>): Record<string, string> | undefined {
+  if (!labels) {
+    return undefined;
+  }
+
+  const safeLabels = Object.entries(labels).reduce<Record<string, string>>((acc, [key, value]) => {
+    if (isSensitiveLabelKey(key)) {
+      return acc;
+    }
+
+    acc[key] = isEndpointLabelKey(key) ? sanitizeEndpoint(value) : value;
+    return acc;
+  }, {});
+
+  return Object.keys(safeLabels).length > 0 ? safeLabels : undefined;
+}
+
+function isSensitiveLabelKey(key: string): boolean {
+  const normalized = key.toLowerCase();
+  return normalized.includes('url')
+    || normalized === 'file_name'
+    || normalized === 'tag'
+    || normalized === 'resource_name'
+    || normalized === 'tags'
+    || normalized === 'id'
+    || normalized.endsWith('_id');
+}
+
+function isEndpointLabelKey(key: string): boolean {
+  return key.toLowerCase().includes('endpoint');
+}
+
+function sanitizeMeasurementName(name: string): string {
+  const [baseName] = name.split(/[?#]/);
+  return (baseName ?? name)
+    .replace(/(upload_)[a-z0-9]{8,}/gi, '$1id')
+    .replace(/[0-9a-f]{8}-[0-9a-f-]{27,}/gi, 'id')
+    .replace(/\b[0-9a-f]{8,}\b/gi, 'id')
+    .replace(/\b\d+\b/g, 'id');
+}
+
+function sanitizeEndpoint(url: string): string {
+  const pathname = extractPathname(url);
+  return pathname
+    .split('/')
+    .map(segment => isIdentifierSegment(segment) ? ':id' : segment)
+    .join('/');
+}
+
+function extractPathname(url: string): string {
+  try {
+    return new URL(url, window.location.origin).pathname;
+  } catch {
+    return url.split('?')[0] || '/';
+  }
+}
+
+function isIdentifierSegment(segment: string): boolean {
+  return /^\d+$/.test(segment)
+    || /^[0-9a-f]{8,}$/i.test(segment)
+    || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment);
+}
+
+function fileExtension(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  return extension && /^[a-z0-9]{1,10}$/.test(extension) ? extension : 'unknown';
+}

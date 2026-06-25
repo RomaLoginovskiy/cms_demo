@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Kubernetes Deployment Script for Demo CMS
-# This script builds Docker images and deploys the application to Kubernetes
+# Kubernetes Deployment Script for Demo CMS and Canvas
+# This script builds Docker images and deploys the applications to Kubernetes
 
 set -e
 
@@ -73,15 +73,35 @@ build_images() {
     export IMAGE_TAG
     print_info "Using image tag: $IMAGE_TAG"
     
-    # Build backend with no-cache to ensure fresh build
-    print_info "Building backend image..."
+    # Build CMS backend with no-cache to ensure fresh build
+    print_info "Building CMS backend image..."
     docker build --no-cache -t demo-cms-backend:$IMAGE_TAG -t demo-cms-backend:latest \
         -f "$PROJECT_ROOT/backend/Dockerfile" "$PROJECT_ROOT/backend/"
     
-    # Build frontend with no-cache to ensure npm packages are refreshed
-    print_info "Building frontend image (with fresh npm install)..."
+    # Build CMS frontend with no-cache to ensure npm packages are refreshed
+    print_info "Building CMS frontend image (with fresh npm install)..."
     docker build --no-cache -t demo-cms-frontend:$IMAGE_TAG -t demo-cms-frontend:latest \
         -f "$PROJECT_ROOT/frontend/Dockerfile" "$PROJECT_ROOT/frontend/"
+
+    # Build CMS media worker
+    print_info "Building CMS media worker image..."
+    docker build --no-cache -t demo-cms-media-worker:$IMAGE_TAG -t demo-cms-media-worker:latest \
+        -f "$PROJECT_ROOT/backend/DemoCms.MediaWorker/Dockerfile" "$PROJECT_ROOT/backend/"
+
+    # Build canvas backend
+    print_info "Building canvas backend image..."
+    docker build --no-cache -t demo-canvas-backend:$IMAGE_TAG -t demo-canvas-backend:latest \
+        -f "$PROJECT_ROOT/canvas-backend/Dockerfile" "$PROJECT_ROOT/canvas-backend/"
+
+    # Build canvas frontend
+    print_info "Building canvas frontend image (with fresh npm install)..."
+    docker build --no-cache -t demo-canvas-frontend:$IMAGE_TAG -t demo-canvas-frontend:latest \
+        -f "$PROJECT_ROOT/canvas-frontend/Dockerfile" "$PROJECT_ROOT/canvas-frontend/"
+
+    # Build canvas load generator (Playwright-based)
+    print_info "Building canvas load generator image..."
+    docker build --no-cache -t demo-canvas-load:$IMAGE_TAG -t demo-canvas-load:latest \
+        -f "$PROJECT_ROOT/loadgen/canvas-load/Dockerfile" "$PROJECT_ROOT/loadgen/canvas-load/"
     
     print_info "Images built successfully with tag: $IMAGE_TAG"
 }
@@ -97,15 +117,31 @@ load_images() {
         print_info "Loading images into minikube..."
         minikube image load demo-cms-backend:$IMAGE_TAG
         minikube image load demo-cms-frontend:$IMAGE_TAG
+        minikube image load demo-cms-media-worker:$IMAGE_TAG
+        minikube image load demo-canvas-backend:$IMAGE_TAG
+        minikube image load demo-canvas-frontend:$IMAGE_TAG
+        minikube image load demo-canvas-load:$IMAGE_TAG
         # Also load latest tag
         minikube image load demo-cms-backend:latest
         minikube image load demo-cms-frontend:latest
+        minikube image load demo-cms-media-worker:latest
+        minikube image load demo-canvas-backend:latest
+        minikube image load demo-canvas-frontend:latest
+        minikube image load demo-canvas-load:latest
     elif [ "$CLUSTER_TYPE" = "kind" ]; then
         print_info "Loading images into kind..."
         kind load docker-image demo-cms-backend:$IMAGE_TAG
         kind load docker-image demo-cms-frontend:$IMAGE_TAG
+        kind load docker-image demo-cms-media-worker:$IMAGE_TAG
+        kind load docker-image demo-canvas-backend:$IMAGE_TAG
+        kind load docker-image demo-canvas-frontend:$IMAGE_TAG
+        kind load docker-image demo-canvas-load:$IMAGE_TAG
         kind load docker-image demo-cms-backend:latest
         kind load docker-image demo-cms-frontend:latest
+        kind load docker-image demo-cms-media-worker:latest
+        kind load docker-image demo-canvas-backend:latest
+        kind load docker-image demo-canvas-frontend:latest
+        kind load docker-image demo-canvas-load:latest
     elif [ "$CLUSTER_TYPE" = "docker-desktop" ]; then
         print_info "Using Docker Desktop - images are already available to Kubernetes"
         print_info "Docker Desktop automatically shares images with its Kubernetes cluster"
@@ -143,104 +179,171 @@ check_ingress() {
     fi
 }
 
-# Create OpenTelemetry Collector ConfigMap
-create_otel_config() {
-    print_info "Creating OpenTelemetry Collector ConfigMap..."
-    
-    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
-    
-    # Check if otel-config.yaml exists
-    if [ -f "$PROJECT_ROOT/otel-config.yaml" ]; then
-        # Create or update ConfigMap from file
-        kubectl create configmap otel-collector-config \
-            --from-file=otel-collector-config.yaml="$PROJECT_ROOT/otel-config.yaml" \
-            -n cms-demo \
-            --dry-run=client -o yaml | kubectl apply -f -
-        print_info "OpenTelemetry Collector ConfigMap created/updated"
-    else
-        print_warning "otel-config.yaml not found, skipping ConfigMap creation"
-    fi
-}
-
-# Remove logs-generator namespace if it exists
-remove_logs_generator() {
-    if kubectl get namespace logs-generator &> /dev/null; then
-        print_warning "Removing logs-generator namespace to stop synthetic logs..."
-        kubectl delete namespace logs-generator --ignore-not-found
-    fi
-}
-
 # Deploy to Kubernetes
+ensure_pvc() {
+    local name=$1
+    local app_label=$2
+    local component_label=$3
+    local storage_size=$4
+
+    if kubectl get pvc "$name" -n cms-demo &> /dev/null; then
+        print_info "PVC $name already exists; leaving immutable storage class unchanged."
+        return
+    fi
+
+    print_info "Creating PVC $name..."
+    kubectl apply -f - <<EOF
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: $name
+  namespace: cms-demo
+  labels:
+    app: $app_label
+    component: $component_label
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: $storage_size
+EOF
+}
+
+ensure_pvcs() {
+    ensure_pvc "backend-data-pvc" "cms-backend" "storage" "1Gi"
+    ensure_pvc "backend-uploads-pvc" "cms-backend" "uploads" "10Gi"
+    ensure_pvc "canvas-backend-data-pvc" "canvas-backend" "storage" "1Gi"
+}
+
+configure_rum_public_key() {
+    if [ -z "${CORALOGIX_RUM_PUBLIC_KEY:-}" ]; then
+        print_info "Using Coralogix RUM public key from deployment manifests."
+        return
+    fi
+
+    print_info "Overriding Coralogix RUM public key from CORALOGIX_RUM_PUBLIC_KEY env variable."
+    kubectl set env deployment/cms-frontend deployment/canvas-frontend \
+        CORALOGIX_RUM_PUBLIC_KEY="$CORALOGIX_RUM_PUBLIC_KEY" \
+        -n cms-demo > /dev/null
+}
+
 deploy() {
-    print_info "Deploying to Kubernetes..."
+    print_info "Deploying Demo CMS and Canvas to Kubernetes..."
     
     # Get script directory
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-    
-    # Create namespace first
-    print_info "Creating namespace..."
+
+    print_info "Ensuring namespace exists..."
     kubectl apply -f "$SCRIPT_DIR/namespace.yaml"
-    
-    # Apply persistent volumes
-    print_info "Creating persistent volumes..."
-    kubectl apply -f "$SCRIPT_DIR/persistent-volumes.yaml"
-    
-    # Deploy Kafka
-    print_info "Deploying Kafka..."
-    kubectl apply -f "$SCRIPT_DIR/kafka-deployment.yaml"
-    
-    # Apply deployments
-    print_info "Deploying backend..."
-    kubectl apply -f "$SCRIPT_DIR/backend-deployment.yaml"
 
-    # Apply backend monitoring resources
-    print_info "Applying Prometheus RBAC..."
-    kubectl apply -f "$SCRIPT_DIR/prometheus-role.yaml"
+    print_info "Ensuring persistent volume claims exist..."
+    ensure_pvcs
 
-    print_info "Applying backend ServiceMonitor..."
-    kubectl apply -f "$SCRIPT_DIR/backend-serviceMonitor.yaml"
-    
-    print_info "Deploying frontend..."
-    kubectl apply -f "$SCRIPT_DIR/frontend-deployment.yaml"
-    
-    # Apply OTEL agent service
-    print_info "Creating OTEL agent service..."
-    kubectl apply -f "$SCRIPT_DIR/otel-agent-service.yaml"
-    
-    # Apply ingress
-    print_info "Creating ingress..."
-    kubectl apply -f "$SCRIPT_DIR/ingress.yaml"
+    print_info "Validating Kustomize manifests..."
+    kubectl kustomize "$SCRIPT_DIR" > /dev/null
+
+    print_info "Applying Kustomize bundle..."
+    kubectl apply -k "$SCRIPT_DIR"
+
+    configure_rum_public_key
+
+    print_info "Removing legacy pre-split frontend/backend workloads..."
+    kubectl delete deployment backend frontend -n cms-demo --ignore-not-found=true
+    kubectl delete service backend frontend -n cms-demo --ignore-not-found=true
     
     # Update images with new tag if IMAGE_TAG is set (from build_images)
     if [ -n "$IMAGE_TAG" ]; then
         print_info "Updating deployments to use new image tag: $IMAGE_TAG"
-        kubectl set image deployment/backend backend=demo-cms-backend:$IMAGE_TAG -n cms-demo
-        kubectl set image deployment/frontend frontend=demo-cms-frontend:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/cms-backend cms-backend=demo-cms-backend:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/cms-frontend cms-frontend=demo-cms-frontend:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/media-worker media-worker=demo-cms-media-worker:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/canvas-backend canvas-backend=demo-canvas-backend:$IMAGE_TAG -n cms-demo
+        kubectl set image deployment/canvas-frontend canvas-frontend=demo-canvas-frontend:$IMAGE_TAG -n cms-demo
+        kubectl delete deployment canvas-load -n cms-demo --ignore-not-found=true
+        kubectl set image statefulset/canvas-load canvas-load=demo-canvas-load:$IMAGE_TAG -n cms-demo
+        kubectl set env deployment/cms-frontend CORALOGIX_APP_VERSION="$IMAGE_TAG" -n cms-demo
+        kubectl set env deployment/canvas-frontend CORALOGIX_APP_VERSION="$IMAGE_TAG" -n cms-demo
         
         # Force rollout to ensure pods pick up the new images
         print_info "Forcing rollout restart to apply new images..."
-        kubectl rollout restart deployment/backend -n cms-demo
-        kubectl rollout restart deployment/frontend -n cms-demo
+        kubectl rollout restart deployment/cms-backend -n cms-demo
+        kubectl rollout restart deployment/cms-frontend -n cms-demo
+        kubectl rollout restart deployment/media-worker -n cms-demo
+        kubectl rollout restart deployment/canvas-backend -n cms-demo
+        kubectl rollout restart deployment/canvas-frontend -n cms-demo
+        kubectl rollout restart statefulset/canvas-load -n cms-demo
     elif [ "$FORCE_REFRESH" = true ]; then
         # Force rollout restart without rebuilding (uses existing latest image)
         print_info "Forcing rollout restart with existing images..."
-        kubectl rollout restart deployment/backend -n cms-demo
-        kubectl rollout restart deployment/frontend -n cms-demo
+        kubectl rollout restart deployment/cms-backend -n cms-demo
+        kubectl rollout restart deployment/cms-frontend -n cms-demo
+        kubectl rollout restart deployment/media-worker -n cms-demo
+        kubectl rollout restart deployment/canvas-backend -n cms-demo
+        kubectl rollout restart deployment/canvas-frontend -n cms-demo
+        kubectl rollout restart statefulset/canvas-load -n cms-demo
     fi
     
     print_info "Waiting for deployments to be ready..."
     kubectl wait --for=condition=available --timeout=300s \
-        deployment/backend deployment/frontend \
+        deployment/cms-backend deployment/cms-frontend deployment/media-worker deployment/canvas-backend deployment/canvas-frontend \
         -n cms-demo
+    print_info "Waiting for canvas-load StatefulSet (3 pods, sequential rollout — often 2-4 min; 'Waiting for 1 pods' is normal)..."
+    kubectl rollout status statefulset/canvas-load -n cms-demo --timeout=300s
     
-    print_info "Deployment completed successfully!"
+    print_info "Demo CMS and Canvas deployment completed successfully!"
+}
+
+# Returns 0 when URL responds with HTTP 2xx/3xx within timeout
+probe_http() {
+    local url=$1
+    local code
+    code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 "$url" 2>/dev/null || echo "000")
+    [[ "$code" =~ ^[23][0-9]{2}$ ]]
+}
+
+show_port_forward_hints() {
+    local need_ingress=false
+    local need_loadgen=false
+
+    if ! probe_http "http://127.0.0.1/"; then
+        need_ingress=true
+    fi
+    if ! probe_http "http://127.0.0.1:8090/healthz"; then
+        need_loadgen=true
+    fi
+
+    if [ "$need_ingress" = false ] && [ "$need_loadgen" = false ]; then
+        return
+    fi
+
+    echo ""
+    print_warning "LoadBalancer not reachable on localhost (common on Docker Desktop after restart). Run in separate terminals:"
+    if [ "$need_ingress" = true ]; then
+        echo "  kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80"
+    fi
+    if [ "$need_loadgen" = true ]; then
+        echo "  kubectl port-forward -n cms-demo svc/canvas-load 8090:8090"
+    fi
+    echo ""
+    print_info "Or run both at once:  $0 port-forward"
+}
+
+port_forward() {
+    print_info "Starting port-forwards (Ctrl+C to stop)..."
+    kubectl port-forward -n ingress-nginx svc/ingress-nginx-controller 80:80 &
+    local pf_ingress=$!
+    kubectl port-forward -n cms-demo svc/canvas-load 8090:8090 &
+    local pf_loadgen=$!
+    trap 'kill '"$pf_ingress $pf_loadgen"' 2>/dev/null; exit' INT TERM
+    print_info "Canvas/CMS: http://localhost  |  Loadgen: http://localhost:8090"
+    wait
 }
 
 # Display access information
 show_access_info() {
     print_info "==================================="
-    print_info "Deployment Complete!"
+    print_info "Demo CMS and Canvas Deployment Complete!"
     print_info "==================================="
     
     CLUSTER_TYPE=$(detect_cluster)
@@ -249,26 +352,29 @@ show_access_info() {
     print_info "Application URLs:"
     
     if [ "$CLUSTER_TYPE" = "minikube" ]; then
-        MINIKUBE_IP=$(minikube ip)
-        echo -e "  Frontend: ${GREEN}http://$MINIKUBE_IP${NC}"
-        echo -e "  Backend API: ${GREEN}http://$MINIKUBE_IP/api${NC}"
-        echo ""
-        print_info "Or run 'minikube tunnel' in a separate terminal and access:"
-        echo -e "  Frontend: ${GREEN}http://localhost${NC}"
-        echo -e "  Backend API: ${GREEN}http://localhost/api${NC}"
+        print_info "Run 'minikube tunnel' in a separate terminal and access:"
+        echo -e "  Canvas:      ${GREEN}http://localhost${NC}"
+        echo -e "  CMS UI:      ${GREEN}http://localhost/cms${NC}"
+        echo -e "  Board API:   ${GREEN}http://localhost/api/boards${NC}"
+        echo -e "  Hub:         ${GREEN}ws://localhost/hubs/board${NC}"
+        echo -e "  CMS Media:   ${GREEN}http://localhost/api/media${NC}"
+        echo -e "  Loadgen UI:  ${GREEN}http://localhost:8090${NC}"
     elif [ "$CLUSTER_TYPE" = "docker-desktop" ]; then
-        echo -e "  Frontend: ${GREEN}http://localhost${NC}"
-        echo -e "  Backend API: ${GREEN}http://localhost/api${NC}"
-        echo ""
-        print_info "Docker Desktop Kubernetes should automatically handle ingress on localhost"
-        print_warning "If not accessible, you may need to port-forward:"
-        echo "  kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80"
+        echo -e "  Canvas:      ${GREEN}http://localhost${NC}"
+        echo -e "  CMS UI:      ${GREEN}http://localhost/cms${NC}"
+        echo -e "  Board API:   ${GREEN}http://localhost/api/boards${NC}"
+        echo -e "  Hub:         ${GREEN}ws://localhost/hubs/board${NC}"
+        echo -e "  CMS Media:   ${GREEN}http://localhost/api/media${NC}"
+        echo -e "  Loadgen UI:  ${GREEN}http://localhost:8090${NC}"
+        show_port_forward_hints
     else
-        echo -e "  Frontend: ${GREEN}http://localhost${NC}"
-        echo -e "  Backend API: ${GREEN}http://localhost/api${NC}"
+        echo -e "  Canvas:      ${GREEN}http://localhost${NC}"
+        echo -e "  CMS UI:      ${GREEN}http://localhost/cms${NC}"
+        echo -e "  Board API:   ${GREEN}http://localhost/api/boards${NC}"
+        echo -e "  Hub:         ${GREEN}ws://localhost/hubs/board${NC}"
+        echo -e "  CMS Media:   ${GREEN}http://localhost/api/media${NC}"
         echo ""
-        print_warning "You may need to run port forwarding:"
-        echo "  kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 80:80"
+        show_port_forward_hints
     fi
     
     echo ""
@@ -276,8 +382,11 @@ show_access_info() {
     echo "  View pods:           kubectl get pods -n cms-demo"
     echo "  View services:       kubectl get svc -n cms-demo"
     echo "  View ingress:        kubectl get ingress -n cms-demo"
-    echo "  Backend logs:        kubectl logs -n cms-demo -l app=backend -f"
-    echo "  Frontend logs:       kubectl logs -n cms-demo -l app=frontend -f"
+    echo "  CMS backend logs:    kubectl logs -n cms-demo -l app=cms-backend -f"
+    echo "  CMS frontend logs:   kubectl logs -n cms-demo -l app=cms-frontend -f"
+    echo "  Media worker logs:   kubectl logs -n cms-demo -l app=media-worker -f"
+    echo "  Canvas API logs:     kubectl logs -n cms-demo -l app=canvas-backend -f"
+    echo "  Canvas UI logs:      kubectl logs -n cms-demo -l app=canvas-frontend -f"
     echo "  Describe pod:        kubectl describe pod -n cms-demo <pod-name>"
     echo "  Restart deployment:  kubectl rollout restart deployment/<name> -n cms-demo"
     echo "  Delete app:          kubectl delete namespace cms-demo"
@@ -305,8 +414,12 @@ main() {
             logs "$@"
             exit 0
             ;;
+        port-forward|pf)
+            port_forward
+            exit 0
+            ;;
         help|--help|-h)
-            echo "Demo CMS Deployment Script"
+            echo "Demo CMS and Canvas Deployment Script"
             echo ""
             echo "Usage: $0 [COMMAND] [OPTIONS]"
             echo ""
@@ -314,7 +427,8 @@ main() {
             echo "  deploy       Deploy the application (default)"
             echo "  cleanup      Delete all resources"
             echo "  status       Show deployment status"
-            echo "  logs [app]   Show logs (backend|frontend)"
+            echo "  logs [app]   Show logs (cms-backend|cms-frontend|media-worker|canvas-backend|canvas-frontend)"
+            echo "  port-forward Start localhost port-forwards for ingress (:80) and loadgen (:8090)"
             echo "  help         Show this help message"
             echo ""
             echo "Deploy Options:"
@@ -333,7 +447,7 @@ main() {
             ;;
     esac
 
-    print_info "Starting Demo CMS deployment..."
+    print_info "Starting Demo CMS and Canvas deployment..."
     
     # Check if kubectl is available
     if ! command -v kubectl &> /dev/null; then
@@ -355,7 +469,7 @@ main() {
     fi
     
     # Parse arguments
-    BUILD_IMAGES=true
+    LOAD_IMAGES=true
     SKIP_BUILD=false
     FORCE_REFRESH=false
     
@@ -366,7 +480,7 @@ main() {
                 shift
                 ;;
             --no-images)
-                BUILD_IMAGES=false
+                LOAD_IMAGES=false
                 shift
                 ;;
             --force-refresh)
@@ -377,9 +491,13 @@ main() {
     done
     
     # Build images unless skipped
-    if [ "$SKIP_BUILD" = false ] && [ "$BUILD_IMAGES" = true ]; then
+    if [ "$SKIP_BUILD" = false ]; then
         build_images
-        load_images
+        if [ "$LOAD_IMAGES" = true ]; then
+            load_images
+        else
+            print_warning "Skipping image load into cluster (--no-images)."
+        fi
     fi
     
     # Export FORCE_REFRESH for use in deploy function
@@ -387,9 +505,6 @@ main() {
     
     # Check and install ingress controller if needed
     check_ingress
-    
-    # Ensure logs-generator is removed
-    remove_logs_generator
     
     # Deploy application
     deploy
@@ -400,7 +515,7 @@ main() {
 
 # Cleanup function
 cleanup() {
-    print_warning "Cleaning up Demo CMS deployment..."
+    print_warning "Cleaning up Demo CMS and Canvas deployment..."
     
     read -p "Are you sure you want to delete all resources? (yes/no): " confirm
     if [ "$confirm" = "yes" ]; then
@@ -414,7 +529,7 @@ cleanup() {
 
 # Show status
 status() {
-    print_info "Demo CMS Status:"
+    print_info "Demo CMS and Canvas Status:"
     echo ""
     
     print_info "Deployments:"
@@ -439,7 +554,7 @@ status() {
 
 # Show logs
 logs() {
-    component=${1:-backend}
+    component=${1:-canvas-backend}
     
     print_info "Showing logs for $component..."
     kubectl logs -n cms-demo -l app=$component -f --tail=100

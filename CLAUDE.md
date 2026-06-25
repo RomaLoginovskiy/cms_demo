@@ -73,5 +73,5 @@ Use `.env` or `appsettings.json` for local overrides.
 
 - The repository follows a monorepo structure with separate `backend/` and `frontend/` directories.
 - The Dockerfiles use multi‑stage builds to keep images small.
-- The `k8s/` directory contains manifests for deployment, including Kafka, Prometheus, and Coralogix Agent.
+- The `k8s/` directory contains manifests for deployment, including Kafka and Coralogix Agent.
 - Run `dotnet tool install --global dotnet-format` for formatting, if desired.

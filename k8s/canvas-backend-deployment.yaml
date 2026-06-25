@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas-backend
+  namespace: cms-demo
+  labels:
+    app: canvas-backend
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: canvas-backend
+  template:
+    metadata:
+      labels:
+        app: canvas-backend
+        component: api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: canvas-backend
+        image: demo-canvas-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ASPNETCORE_URLS
+          value: "http://+:8080"
+        - name: ConnectionStrings__Sqlite
+          value: "Data Source=/app/data/whiteboard.db"
+        - name: Cors__Origin
+          value: "http://localhost"
+        - name: NODE
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: OpenTelemetry__OtlpEndpoint
+          value: "http://$(NODE):4318"
+        - name: OpenTelemetry__ServiceName
+          value: "demo-canvas-api"
+        - name: RUM_DEMO_ENABLED
+          value: "false"
+        volumeMounts:
+        - name: canvas-backend-data
+          mountPath: /app/data
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1654
+          runAsGroup: 1654
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: canvas-backend-data
+        persistentVolumeClaim:
+          claimName: canvas-backend-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: canvas-backend
+  namespace: cms-demo
+  labels:
+    app: canvas-backend
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: canvas-backend
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http

@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "@coralogix/browser": "^2.8.9"
+    "@coralogix/browser": "^3.9.0"
   }
 }

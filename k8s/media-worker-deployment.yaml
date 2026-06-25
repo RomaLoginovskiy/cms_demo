@@ -17,6 +17,10 @@ spec:
         app: media-worker
         component: worker
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: media-worker
         image: demo-cms-media-worker:latest
@@ -41,13 +45,21 @@ spec:
         - name: OpenAI__Prompt
           value: "Describe the image in one sentence."
         - name: Api__BaseUrl
-          value: "http://backend:8080"
+          value: "http://cms-backend:8080"
         - name: NODE
           valueFrom:
             fieldRef:
               fieldPath: status.hostIP
         - name: OpenTelemetry__OtlpEndpoint
           value: "http://$(NODE):4318"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1654
+          runAsGroup: 1654
         resources:
           requests:
             memory: "256Mi"

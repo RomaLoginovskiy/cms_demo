@@ -14,7 +14,7 @@ import { Line } from 'react-chartjs-2';
 import { useMedia } from '../contexts/MediaContext';
 import { Media } from '../types';
 import { measurementService } from '../services/measurements';
-import { CoralogixRum, CoralogixLogSeverity } from '@coralogix/browser';
+import { rumDebugLog, rumInfoLog, rumWarnLog } from '../observability/coralogixRum';
 
 ChartJS.register(
   CategoryScale,
@@ -47,8 +47,7 @@ export default function MediaStats() {
     });
 
     // Log stats page access with critical severity
-    CoralogixRum.log(
-      CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+    rumInfoLog(
       'User accessed Media Statistics page',
       { 
         action: 'page_access',
@@ -72,8 +71,7 @@ export default function MediaStats() {
       measurementService.endTimeMeasurement('stats_calculation');
       
       // Log stats calculation completion
-      CoralogixRum.log(
-        CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+      rumInfoLog(
         'Stats calculation completed',
         { 
           calculation_time: '500ms',
@@ -92,8 +90,7 @@ export default function MediaStats() {
   const statsData: StatsData = useMemo(() => {
     if (state.media.length === 0) {
       // Log when no data is available for stats
-      CoralogixRum.log(
-        CoralogixLogSeverity.Warn, // This will be elevated to Critical by beforeSend
+      rumWarnLog(
         'No media data available for statistics',
         { media_count: 0 },
         { page_category: 'stats', data_availability: 'empty' }
@@ -114,8 +111,7 @@ export default function MediaStats() {
     const averageFileSize = totalSize / totalFiles;
 
     // Log key statistics calculations
-    CoralogixRum.log(
-      CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+    rumInfoLog(
       'Stats data calculated successfully',
       { 
         total_files: totalFiles,
@@ -144,7 +140,7 @@ export default function MediaStats() {
     const dateGroups = new Map<string, Media[]>();
     
     sortedMedia.forEach(media => {
-      const date = new Date(media.uploadedAt).toISOString().split('T')[0];
+      const date = new Date(media.uploadedAt).toISOString().split('T')[0] ?? 'unknown';
       if (!dateGroups.has(date)) {
         dateGroups.set(date, []);
       }
@@ -171,13 +167,12 @@ export default function MediaStats() {
     });
 
     // Log growth data points
-    CoralogixRum.log(
-      CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+    rumInfoLog(
       'Growth charts data prepared',
       { 
         data_points: sortedDates.length,
-        date_range_start: sortedDates[0],
-        date_range_end: sortedDates[sortedDates.length - 1]
+        date_range_start: sortedDates[0] ?? 'none',
+        date_range_end: sortedDates[sortedDates.length - 1] ?? 'none'
       },
       { 
         page_category: 'stats', 
@@ -215,8 +210,7 @@ export default function MediaStats() {
         position: 'top' as const,
         onClick: (e: any, legendItem: any) => {
           // Log chart legend interactions
-          CoralogixRum.log(
-            CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+          rumInfoLog(
             'Chart legend clicked',
             { 
               legend_text: legendItem.text,
@@ -233,8 +227,7 @@ export default function MediaStats() {
         callbacks: {
           beforeTitle: (context: any) => {
             // Log chart tooltip interactions
-            CoralogixRum.log(
-              CoralogixLogSeverity.Debug, // This will be elevated to Critical by beforeSend
+            rumDebugLog(
               'Chart tooltip displayed',
               { 
                 data_point_index: context[0]?.dataIndex,
@@ -265,8 +258,7 @@ export default function MediaStats() {
     onClick: (event: any, elements: any) => {
       if (elements.length > 0) {
         const element = elements[0];
-        CoralogixRum.log(
-          CoralogixLogSeverity.Info, // This will be elevated to Critical by beforeSend
+        rumInfoLog(
           'Chart data point clicked',
           { 
             dataset_index: element.datasetIndex,
@@ -414,7 +406,7 @@ export default function MediaStats() {
                     tooltip: {
                       callbacks: {
                         label: function(context) {
-                          return `${context.dataset.label}: ${formatFileSize(context.parsed.y * 1024 * 1024)}`;
+                          return `${context.dataset.label}: ${formatFileSize((context.parsed.y ?? 0) * 1024 * 1024)}`;
                         }
                       }
                     }

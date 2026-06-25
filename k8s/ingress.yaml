@@ -8,47 +8,67 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    # CORS configuration
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
-    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/whitelist-source-range: "127.0.0.1/32,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 spec:
   ingressClassName: nginx
   rules:
   - host: localhost
     http:
       paths:
-      # Backend API routes - must come first for priority
+      # Canvas API and SignalR keep their legacy public paths.
+      - path: /api/boards
+        pathType: Prefix
+        backend:
+          service:
+            name: canvas-backend
+            port:
+              number: 8080
+      - path: /hubs
+        pathType: Prefix
+        backend:
+          service:
+            name: canvas-backend
+            port:
+              number: 8080
+      # CMS media remains owned by the CMS backend.
+      - path: /api/media
+        pathType: Prefix
+        backend:
+          service:
+            name: cms-backend
+            port:
+              number: 8080
+      # Other CMS API routes.
       - path: /api
         pathType: Prefix
         backend:
           service:
-            name: backend
+            name: cms-backend
             port:
               number: 8080
-      - path: /metrics
-        pathType: Prefix
-        backend:
-          service:
-            name: backend
-            port:
-              number: 8080
-      # OTLP HTTP endpoint for frontend RUM traces
+      # Browser RUM tracesExporter OTLP/JSON (otel-gateway).
       - path: /v1/traces
         pathType: Prefix
         backend:
           service:
-            name: otel-agent
+            name: otel-gateway
             port:
               number: 4318
-      # Frontend routes - everything else
+      # CMS frontend is available under /cms while canvas keeps /.
+      - path: /cms
+        pathType: Prefix
+        backend:
+          service:
+            name: cms-frontend
+            port:
+              number: 80
+      # Canvas frontend routes - everything else.
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: frontend
+            name: canvas-frontend
             port:
               number: 80

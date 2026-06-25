@@ -207,6 +207,13 @@ logs/
 uploads/
 media/
 !media/.gitkeep
+!canvas-frontend/src/whiteboard/media/
+!canvas-frontend/src/whiteboard/media/**
+!frontend/src/whiteboard/media/
+!frontend/src/whiteboard/media/**
+*.db
+*.db-shm
+*.db-wal
 
 # =========================
 # Automated tests artifacts

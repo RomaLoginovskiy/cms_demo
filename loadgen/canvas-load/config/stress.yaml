@@ -1,0 +1,10 @@
+run:
+  scenario: stress
+  duration: 10m
+
+target:
+  frontend_base_url: http://localhost
+
+users:
+  count: 20
+  think_time_ms: 50

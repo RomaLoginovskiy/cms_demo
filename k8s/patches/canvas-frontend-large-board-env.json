@@ -1,0 +1,50 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CORALOGIX_ENVIRONMENT",
+      "value": "load-test"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CANVAS_LAG_SIM_ENABLED",
+      "value": "true"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CANVAS_LAG_SIM_MODE",
+      "value": "large_board_render"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CANVAS_LAG_SIM_RENDER_COST_US",
+      "value": "400"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CANVAS_LAG_SIM_LARGE_BOARD_THRESHOLD",
+      "value": "1000"
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/template/spec/containers/0/env/-",
+    "value": {
+      "name": "CANVAS_LAG_SIM_ALLOW_PROD",
+      "value": "false"
+    }
+  }
+]

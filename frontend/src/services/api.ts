@@ -1,6 +1,5 @@
 import { Media, UploadMediaRequest, UpdateMediaRequest } from '../types';
 import { measurementService } from './measurements';
-import { createTraceparent } from './tracing';
 
 // Use empty string for Docker deployment (nginx proxy handles routing)
 // or fallback to localhost:7043 for local development
@@ -10,9 +9,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL !== undefined
 
 async function fetchWithTracing(url: string, options: RequestInit = {}): Promise<Response> {
   const startTime = performance.now();
-  const headers = new Headers(options.headers);
-  headers.set('traceparent', createTraceparent());
-  
+
   // Start time measurement for the API call
   // Extract pathname from URL or use the path directly if it's relative
   const pathname = url.startsWith('http') ? new URL(url).pathname : url;
@@ -23,10 +20,7 @@ async function fetchWithTracing(url: string, options: RequestInit = {}): Promise
   });
 
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers
-    });
+    const response = await fetch(url, options);
     
     const endTime = performance.now();
     
@@ -96,8 +90,13 @@ export const mediaApi = {
     
     // Add files and calculate total size
     for (let i = 0; i < files.length; i++) {
-      formData.append('files', files[i]);
-      totalFileSize += files[i].size;
+      const file = files.item(i);
+      if (!file) {
+        continue;
+      }
+
+      formData.append('files', file);
+      totalFileSize += file.size;
     }
     
     // Track upload metrics
@@ -128,9 +127,14 @@ export const mediaApi = {
       
       // Track successful upload metrics
       for (let i = 0; i < files.length; i++) {
+        const file = files.item(i);
+        if (!file) {
+          continue;
+        }
+
         measurementService.trackUploadMetrics(
-          files[i].name, 
-          files[i].size, 
+          file.name,
+          file.size,
           uploadDuration, 
           true
         );
@@ -143,9 +147,14 @@ export const mediaApi = {
       
       // Track failed upload metrics
       for (let i = 0; i < files.length; i++) {
+        const file = files.item(i);
+        if (!file) {
+          continue;
+        }
+
         measurementService.trackUploadMetrics(
-          files[i].name, 
-          files[i].size, 
+          file.name,
+          file.size,
           uploadDuration, 
           false
         );

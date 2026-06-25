@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: coralogix-opentelemetry-collector
+  namespace: cms-demo
+  labels:
+    app.kubernetes.io/instance: coralogix-otel-raw
+    app.kubernetes.io/name: opentelemetry-cluster-collector
+    app.kubernetes.io/part-of: coralogix-infrastructure-explorer
+    component: standalone-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: coralogix-otel-raw
+    app.kubernetes.io/name: opentelemetry-cluster-collector
+    component: standalone-collector
+  ports:
+    - name: otlp
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+      appProtocol: grpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-agent
+  namespace: cms-demo
+  labels:
+    app: otel-agent
+    app.kubernetes.io/instance: coralogix-otel-raw
+    app.kubernetes.io/name: opentelemetry-agent
+    app.kubernetes.io/part-of: coralogix-infrastructure-explorer
+    component: telemetry
+    project: demo-cms
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: coralogix-otel-raw
+    app.kubernetes.io/name: opentelemetry-agent
+    component: agent-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP

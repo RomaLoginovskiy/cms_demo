@@ -72,10 +72,10 @@ check_cms_running() {
     fi
     
     # Check if application is accessible (works for both Docker and K8s)
-    if curl -s http://localhost > /dev/null 2>&1; then
-        print_success "Frontend is accessible at http://localhost"
+    if curl -s http://localhost/cms > /dev/null 2>&1; then
+        print_success "CMS frontend is accessible at http://localhost/cms"
     else
-        print_warning "Frontend doesn't seem to be accessible at http://localhost"
+        print_warning "CMS frontend doesn't seem to be accessible at http://localhost/cms"
         
         if [ "$deployment_type" = "unknown" ]; then
             # Check Docker Compose
@@ -103,7 +103,7 @@ check_cms_running() {
     
     echo ""
     print_status "Configuration:"
-    echo "  Base URL: ${CMS_BASE_URL:-http://localhost (default)}"
+    echo "  Base URL: ${CMS_BASE_URL:-http://localhost/cms (default)}"
     echo "  API URL:  ${CMS_API_URL:-http://localhost/api (default)}"
     echo ""
 }
@@ -133,7 +133,7 @@ show_usage() {
     echo "  help               Show this help message"
     echo ""
     echo "Environment Variables:"
-    echo "  CMS_BASE_URL       Base URL for the frontend (default: http://localhost)"
+    echo "  CMS_BASE_URL       Base URL for the frontend (default: http://localhost/cms)"
     echo "  CMS_API_URL        API URL for the backend (default: http://localhost/api)"
     echo "  HEADLESS           Run tests in headless mode (default: false)"
     echo ""
@@ -147,7 +147,7 @@ show_usage() {
     echo "  ./run-tests.sh test-continuous                    # Long running tests"
     echo ""
     echo "For Kubernetes deployment:"
-    echo "  Uses http://localhost (via ingress)"
+    echo "  Uses http://localhost/cms (via ingress)"
     echo ""
     echo "For Docker Compose deployment:"
     echo "  Set CMS_BASE_URL=http://localhost:3000"
@@ -176,7 +176,7 @@ case "${1:-help}" in
         check_node
         check_cms_running
         print_status "Running standard test suite..."
-        print_status "Base URL: ${CMS_BASE_URL:-http://localhost:3000}"
+        print_status "Base URL: ${CMS_BASE_URL:-http://localhost/cms}"
         print_status "API URL: ${CMS_API_URL:-http://localhost:8080/api}"
         node "$(dirname "$0")/cms-puppeteer-test.js"
         ;;

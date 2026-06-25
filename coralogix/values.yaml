@@ -26,13 +26,16 @@ opentelemetry-cluster-collector:
       enabled: true
     hostEntityEvents:
       enabled: true
-      
+    clusterMetrics:
+      enabled: true
   config:  
     receivers:
-      jmx/kafka:
-        endpoint: kafka:9999
-        target_system: kafka
-        collection_interval: 30s
+      # jmx/kafka requires /opt/opentelemetry-java-contrib-jmx-metrics.jar which is not
+      # bundled in the otelcol-contrib image. Collect Kafka metrics via Prometheus instead.
+      # jmx/kafka:
+      #   endpoint: kafka:9999
+      #   target_system: kafka
+      #   collection_interval: 30s
     processors:
       # Transform processor to set/normalize severity before filtering
       # transform/set_severity:
@@ -113,8 +116,10 @@ opentelemetry-cluster-collector:
         # logs:
         #   processors: [transform/set_severity, filter/severity_number, filter/severity_text, filter/body_keywords, filter/debug_attributes]
         metrics:
-          receivers: [k8s_cluster, prometheus, prometheus/k8s_extra_metrics, otlp, jmx/kafka]
-          processors: [resource/remove-fields]
+          # prometheus/k8s_extra_metrics was renamed to prometheus/k8s_apiserver_metrics in
+          # current chart version. jmx/kafka removed (requires JAR not in otelcol-contrib image).
+          receivers: [k8s_cluster, prometheus, prometheus/k8s_apiserver_metrics, otlp]
+          # processors: [resource/remove-fields]
 
 
           
@@ -136,15 +141,19 @@ opentelemetry-agent:
         enabled: true
       storeCheckpoints: false
     hostMetrics:
-      enabled: false  # Disabled for Docker Desktop compatibility (requires hostPath mounts)
+      enabled: true  # Disabled for Docker Desktop compatibility (requires hostPath mounts)
       process:
-        enabled: false
+        enabled: true
     hostEntityEvents:
-      enabled: false  # Disabled because it requires hostMetrics
+      enabled: true  # Disabled because it requires hostMetrics
     resourceDetection:
       enabled: false  # Disabled for Docker Desktop compatibility (requires hostPath mounts)
     reduceResourceAttributes:
       enabled: true
+    kubernetesExtraMetrics:
+      enabled: true
+      perNode: true
+      scrapeAll: false
   command:
     extraArgs: [ "--feature-gates=service.profilesSupport" ]
 
@@ -166,8 +175,9 @@ opentelemetry-agent:
       kafka/logs:
         brokers:
           - kafka:9092
-        topic: otel-logs
-        encoding: otlp_json
+        logs:
+          topic: otel-logs
+          encoding: otlp_json
     processors:
       # Transform processor to extract severity from log body
       # transform/extract_severity_from_body:
@@ -232,7 +242,7 @@ opentelemetry-agent:
           # processors: [transform/extract_severity_from_body, filter/severity_number]
           exporters: [kafka/logs]
         metrics:
-          processors: [resource/remove-fields]
+          # processors: [resource/remove-fields]
         # traces/db2:
         #   exporters:
         #   - spanmetrics/db2

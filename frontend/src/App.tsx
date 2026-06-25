@@ -1,91 +1,69 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
-import { MediaProvider } from './contexts/MediaContext';
+import { BrowserRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import './App.css';
 import Hero from './components/Hero';
-import Navigation from './components/Navigation';
 import MediaGallery from './components/MediaGallery';
 import MediaModal from './components/MediaModal';
-import MediaUpload from './components/MediaUpload';
 import MediaStats from './components/MediaStats';
-import { Media } from './types/index';
-import './App.css';
+import MediaUpload from './components/MediaUpload';
+import Navigation from './components/Navigation';
+import { MediaProvider } from './contexts/MediaContext';
+import { Media } from './types';
 
-
-
-
-
-
-function AppContent() {
+function CmsRoutes(): JSX.Element {
   const navigate = useNavigate();
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
-  };
+  function handleMediaSelect(media: Media): void {
+    if (!media.id) {
+      navigate('/upload');
+      return;
+    }
 
-  const handleMediaSelect = (media: Media) => {
     setSelectedMedia(media);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setSelectedMedia(null);
-  };
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      <Hero 
-        title="Scout Finch" 
-        subtitle="Photographer" 
-      />
-      
-      <Navigation onNavigate={handleNavigate} />
-      
-      <main>
-        <Routes>
-          <Route 
-            path="/" 
-            element={<MediaGallery onMediaSelect={handleMediaSelect} />} 
-          />
-          <Route 
-            path="/upload" 
-            element={<MediaUpload />} 
-          />
-          <Route 
-            path="/stats" 
-            element={<MediaStats />} 
-          />
-          <Route 
-            path="/about" 
-            element={
-              <div className="max-w-2xl mx-auto px-4 py-8">
-                <h2 className="text-2xl font-display mb-4">About</h2>
-                <p className="text-gray-600">This is a demo CMS application showcasing modern web development with React, .NET Core, and OpenTelemetry observability.</p>
-              </div>
-            } 
-          />
-        </Routes>
-      </main>
-
-      <MediaModal
-        media={selectedMedia}
-        isOpen={isModalOpen}
-        onClose={closeModal}
-      />
-    </div>
+    <>
+      <Navigation onNavigate={navigate} />
+      <Routes>
+        <Route path="/upload" element={<MediaUpload />} />
+        <Route path="/stats" element={<MediaStats />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route
+          path="*"
+          element={(
+            <>
+              <Hero title="Demo CMS" subtitle="Media gallery and upload demo" />
+              <MediaGallery onMediaSelect={handleMediaSelect} />
+              <MediaModal media={selectedMedia} isOpen={selectedMedia !== null} onClose={() => setSelectedMedia(null)} />
+            </>
+          )}
+        />
+      </Routes>
+    </>
   );
 }
 
-function App() {
+function AboutPage(): JSX.Element {
+  return (
+    <main className="max-w-4xl mx-auto px-4 py-12">
+      <h1 className="text-3xl font-display mb-4 text-gray-900">About Demo CMS</h1>
+      <p className="text-gray-600">
+        Demo CMS stores media metadata and image files for the gallery and for external consumers such as the canvas app.
+      </p>
+    </main>
+  );
+}
+
+export default function App(): JSX.Element {
+  const basePath = process.env.REACT_APP_BASE_PATH ?? '';
+
   return (
     <MediaProvider>
-      <Router>
-        <AppContent />
-      </Router>
+      <BrowserRouter basename={basePath}>
+        <CmsRoutes />
+      </BrowserRouter>
     </MediaProvider>
   );
 }
-
-export default App;

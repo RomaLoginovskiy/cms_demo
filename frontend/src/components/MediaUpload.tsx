@@ -15,7 +15,7 @@ interface UploadFile {
   tags: string[];
   isUploading: boolean;
   uploadProgress: number;
-  error?: string;
+  error?: string | undefined;
 }
 
 const MediaUpload: React.FC = () => {
