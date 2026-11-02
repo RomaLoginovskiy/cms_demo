@@ -242,3 +242,20 @@ traces/
 *.rej
 *.patch
 .history/
+
+# =========================
+# Infrastructure (Terraform / floci local environment)
+# =========================
+**/.terraform/
+**/.terraform-*/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+infra/local/.aws/
+infra/local/.kubeconfig
+infra/local/.env.local
+infra/local/.secrets.env
+infra/local/.last-image-tag
+infra/local/.git-mirror-password
+deploy/platform/coralogix-otel/overlays/*/charts/

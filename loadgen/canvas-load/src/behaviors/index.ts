@@ -3,6 +3,9 @@ import { runActiveDrawer } from './activeDrawer';
 import { runAdmin } from './admin';
 import { runChaos } from './chaos';
 import { runCollaborator } from './collaborator';
+import { runCmsBrowser } from './cmsBrowser';
+import { runCmsCurator } from './cmsCurator';
+import { runCmsUploader } from './cmsUploader';
 import { runLurker } from './lurker';
 import { runMediaPlacer } from './mediaPlacer';
 import { runComplexPlacer } from './complexPlacer';
@@ -17,7 +20,10 @@ const runners: Record<ProfileName, BehaviorFn> = {
   media_placer: runMediaPlacer,
   complex_placer: runComplexPlacer,
   text_editor: runTextEditor,
-  chaos: runChaos
+  chaos: runChaos,
+  cms_uploader: runCmsUploader,
+  cms_curator: runCmsCurator,
+  cms_browser: runCmsBrowser
 };
 
 export async function runProfile(profile: ProfileName, ctx: BehaviorContext): Promise<void> {

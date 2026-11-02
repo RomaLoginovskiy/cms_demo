@@ -41,7 +41,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadConfig>
     ? ` (rewrote ${resolved.rewrittenFrom})`
     : '';
   console.log(
-    `Resolved canvas target: ${resolved.url} (source: ${resolved.source})${rewriteNote}`
+    `Resolved ${config.target.app ?? 'canvas'} target: ${resolved.url} (source: ${resolved.source})${rewriteNote}`
   );
 
   const shard = resolveShard(config.shard?.count);
@@ -88,7 +88,8 @@ function mergeDeep(base: LoadConfig, partial: Partial<LoadConfig>): LoadConfig {
         // When mix is set in YAML, it is the full distribution — do not keep default weights for omitted profiles.
         mix: partial.profiles?.mix
           ? { ...partial.profiles.mix }
-          : { ...base.profiles.mix }
+          : { ...base.profiles.mix },
+        cms: { ...base.profiles.cms, ...partial.profiles?.cms }
       },
       chaos: { ...base.chaos, ...partial.chaos },
       abort: { ...base.abort, ...partial.abort },

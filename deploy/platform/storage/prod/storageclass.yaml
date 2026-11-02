@@ -1,0 +1,18 @@
+# Default class for PVCs that do not name one (base manifests never do). Volumes are tagged for the
+# AWS Backup plan selected by backup=daily.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+reclaimPolicy: Retain
+parameters:
+  type: gp3
+  encrypted: "true"
+  fsType: ext4
+  tagSpecification_1: "backup=daily"
+  tagSpecification_2: "Project=cms-demo"

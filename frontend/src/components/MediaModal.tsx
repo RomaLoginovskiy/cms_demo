@@ -93,6 +93,8 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
           <h2 className="text-xl font-display font-medium">Media Details</h2>
           <button
             onClick={onClose}
+            data-cx-action-name="media-close"
+            aria-label="Close"
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,6 +124,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    data-cx-action-name="media-edit-title"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral focus:border-transparent"
                     placeholder="Enter title..."
                   />
@@ -139,6 +142,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
+                    data-cx-action-name="media-edit-description"
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-coral focus:border-transparent"
                     placeholder="Enter description..."
@@ -159,6 +163,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                   readOnly={!isEditing}
                   disabled={loading}
                   placeholder="Add tags..."
+                  actionName="media-edit-tags"
                 />
               </div>
 
@@ -190,6 +195,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                   <button
                     onClick={handleSave}
                     disabled={loading}
+                    data-cx-action-name="media-save"
                     className="btn-primary flex-1 disabled:opacity-50"
                   >
                     {loading ? 'Saving...' : 'Save'}
@@ -202,6 +208,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
                       setTags(media.tags || []);
                     }}
                     disabled={loading}
+                    data-cx-action-name="media-cancel-edit"
                     className="btn-secondary flex-1"
                   >
                     Cancel
@@ -210,6 +217,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
+                  data-cx-action-name="media-edit"
                   className="btn-primary w-full"
                 >
                   Edit Details
@@ -219,6 +227,7 @@ export default function MediaModal({ media, isOpen, onClose }: MediaModalProps) 
               <button
                 onClick={handleDelete}
                 disabled={loading}
+                data-cx-action-name="media-delete"
                 className="w-full px-4 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50 hover:border-red-400 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Deleting...' : 'Delete Media'}

@@ -1,0 +1,18 @@
+# Browser RUM traces (OTLP/JSON, same origin) -> agent OTLP HTTP receiver. Hostnames per overlay.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: rum-traces
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1/traces
+      backendRefs:
+        - name: otel-agent
+          port: 4318

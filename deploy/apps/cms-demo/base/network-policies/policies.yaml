@@ -1,0 +1,43 @@
+# Default-deny ingress; allow intra-namespace calls and the Envoy proxies in namespace "edge".
+# Egress stays open in phase 1-2 (Kafka, OTLP on the node IP, browser RUM, captioning endpoint).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-edge
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["cms-frontend", "canvas-frontend", "cms-backend", "canvas-backend"]
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: edge
+      ports:
+        - protocol: TCP
+          port: 8080

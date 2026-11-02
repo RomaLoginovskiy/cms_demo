@@ -1,0 +1,20 @@
+# floci: k3s ServiceLB serves the LoadBalancer Service on the node; no loadBalancerClass.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: cms-edge
+  namespace: edge
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        name: cms-edge
+        type: LoadBalancer
+        externalTrafficPolicy: Cluster
+      envoyDeployment:
+        replicas: 1
+        container:
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }

@@ -52,6 +52,7 @@ export interface RuntimeAppConfig {
   CORALOGIX_RUM_SCREENSHOT_COOLDOWN_MS?: string;
   CORALOGIX_RUM_SCREENSHOT_MAX_PER_SESSION?: string;
   CORALOGIX_RUM_SCREENSHOT_MAX_ERRORS?: string;
+  CORALOGIX_RUM_SESSION_RECORDING_ENABLED?: string;
   CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE?: string;
   CORALOGIX_RUM_TRACK_SOFT_NAVIGATIONS?: string;
   CORALOGIX_OTLP_TRACES_URL?: string;
@@ -312,6 +313,15 @@ export function resolveTrackSoftNavigations(config: RuntimeAppConfig): boolean {
   return raw === 'true' || raw === '1';
 }
 
+/**
+ * Session replay is opt-in: disabled unless CORALOGIX_RUM_SESSION_RECORDING_ENABLED is true/1.
+ * RUM screenshots ride on the session recorder, so they are inert while this is off.
+ */
+export function resolveSessionRecordingEnabled(config: RuntimeAppConfig): boolean {
+  const raw = readRuntimeValue(config.CORALOGIX_RUM_SESSION_RECORDING_ENABLED);
+  return raw === 'true' || raw === '1';
+}
+
 function warnMissingPublicKey(): void {
   if (missingPublicKeyWarningLogged) {
     return;
@@ -343,7 +353,9 @@ function stripUrlSearchAndHash(url: string): string {
 }
 
 function parseSampleRate(value?: string): number {
-  const parsed = Number(value);
+  // Unset runtime env vars arrive as "", and Number("") is 0 — treat blank as "use default".
+  const trimmed = value?.trim();
+  const parsed = trimmed ? Number(trimmed) : NaN;
   if (!Number.isFinite(parsed)) {
     return 100;
   }
@@ -352,8 +364,12 @@ function parseSampleRate(value?: string): number {
 }
 
 function buildSessionRecordingConfig(config: RuntimeAppConfig) {
+  if (!resolveSessionRecordingEnabled(config)) {
+    return { enable: false, autoStartSessionRecording: false };
+  }
+
   return {
-    enable: true as const,
+    enable: true,
     autoStartSessionRecording: true,
     recordConsoleEvents: true,
     sessionRecordingSampleRate: parseSampleRate(config.CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE),

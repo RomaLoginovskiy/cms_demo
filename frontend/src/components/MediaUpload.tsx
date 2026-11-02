@@ -127,6 +127,7 @@ const MediaUpload: React.FC = () => {
 
   const uploadSingleFile = async (uploadFile: UploadFile) => {
     const uploadStartTime = performance.now();
+    let progressInterval: ReturnType<typeof setInterval> | undefined;
     
     try {
       updateFile(uploadFile.id, { isUploading: true, uploadProgress: 0, error: undefined });
@@ -149,7 +150,7 @@ const MediaUpload: React.FC = () => {
       };
 
       // Simulate upload progress
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         updateFile(uploadFile.id, { 
           uploadProgress: Math.min(uploadFile.uploadProgress + 10, 90) 
         });
@@ -176,6 +177,8 @@ const MediaUpload: React.FC = () => {
       setTimeout(() => removeFile(uploadFile.id), 1500);
 
     } catch (error) {
+      clearInterval(progressInterval);
+
       // End upload time measurement even on error
       measurementService.endTimeMeasurement(`upload_${uploadFile.id}`);
       
@@ -261,6 +264,7 @@ const MediaUpload: React.FC = () => {
           multiple
           accept="image/jpeg,image/png,image/gif,image/webp"
           onChange={handleFileInput}
+          data-cx-action-name="upload-select-file"
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         />
       </div>
@@ -276,6 +280,7 @@ const MediaUpload: React.FC = () => {
               <button
                 onClick={uploadAll}
                 disabled={files.some((f) => f.isUploading)}
+                data-cx-action-name="upload-submit-all"
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Upload All
@@ -311,6 +316,7 @@ const MediaUpload: React.FC = () => {
                           value={uploadFile.title}
                           onChange={(e) => updateFile(uploadFile.id, { title: e.target.value })}
                           disabled={uploadFile.isUploading}
+                          data-cx-action-name="upload-edit-title"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                         />
                       </div>
@@ -323,6 +329,7 @@ const MediaUpload: React.FC = () => {
                           value={uploadFile.description}
                           onChange={(e) => updateFile(uploadFile.id, { description: e.target.value })}
                           disabled={uploadFile.isUploading}
+                          data-cx-action-name="upload-edit-description"
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                         />
                       </div>
@@ -337,6 +344,7 @@ const MediaUpload: React.FC = () => {
                         onChange={(tags) => updateFile(uploadFile.id, { tags })}
                         disabled={uploadFile.isUploading}
                         placeholder="Add tags (press Enter or comma to add)"
+                        actionName="upload-add-tag"
                       />
                     </div>
 
@@ -353,6 +361,7 @@ const MediaUpload: React.FC = () => {
                                                  {!uploadFile.isUploading && uploadFile.uploadProgress !== 100 && (
                            <button
                              onClick={() => uploadSingleFile(uploadFile)}
+                             data-cx-action-name="upload-submit-one"
                              className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                            >
                              Upload
@@ -366,6 +375,7 @@ const MediaUpload: React.FC = () => {
                         <button
                           onClick={() => removeFile(uploadFile.id)}
                           disabled={uploadFile.isUploading}
+                          data-cx-action-name="upload-remove-queued"
                           className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50"
                         >
                           Remove

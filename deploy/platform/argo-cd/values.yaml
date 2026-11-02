@@ -1,0 +1,61 @@
+# Shared by the Terraform bootstrap (stacks/gitops) and the argo-cd ApplicationSet (self-management).
+global:
+  domain: argocd.cms-demo.internal
+
+configs:
+  cm:
+    # Coralogix otel-integration is rendered through Kustomize helmCharts; overlays reuse base values.
+    kustomize.buildOptions: --enable-helm --load-restrictor LoadRestrictionsNone
+    timeout.reconciliation: 180s
+    # Local admin stays until SSO (phase 4); the UI is only reachable via kubectl port-forward.
+    admin.enabled: true
+    exec.enabled: false
+    # Charts that render webhook certificates at template time (AWS LBC) would otherwise be OutOfSync forever.
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+  params:
+    # TLS terminates at the port-forward / edge, never at argocd-server.
+    server.insecure: true
+    # Fields owned by other managers (Reloader, controllers) do not show up as drift.
+    controller.diff.server.side: "true"
+  repositories:
+    envoyproxy-oci:
+      name: envoyproxy
+      type: helm
+      url: docker.io/envoyproxy
+      enableOCI: "true"
+
+dex:
+  enabled: false
+
+notifications:
+  enabled: false
+
+controller:
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 1Gi }
+
+repoServer:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+server:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+applicationSet:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+redis:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }

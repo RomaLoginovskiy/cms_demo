@@ -119,6 +119,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
           <p className="text-red-600 font-medium">Error loading media</p>
           <p className="text-gray-600 text-sm mt-1">{error}</p>
           <button
+            data-cx-action-name="gallery-retry"
             onClick={() => {
               measureInteraction('retry_button_click');
               measurementService.sendCustomMeasurement('gallery_retry_attempts', 1);
@@ -145,6 +146,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
           <h3 className="text-xl font-medium text-gray-900 mb-2">No media uploaded yet</h3>
           <p className="text-gray-600 mb-6">Get started by uploading your first image.</p>
           <button
+            data-cx-action-name="gallery-empty-upload"
             onClick={() => {
               measureInteraction('upload_button_click', { context: 'empty_gallery' });
               measurementService.sendCustomMeasurement('upload_button_clicks', 1, {
@@ -181,6 +183,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
             {selectedTags.length > 0 && (
               <button
                 onClick={handleClearFilters}
+                data-cx-action-name="gallery-clear-filters"
                 className="text-sm text-blue-600 hover:text-blue-700 font-medium"
               >
                 Clear filters
@@ -194,6 +197,8 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
                 <button
                   key={tag}
                   onClick={() => handleTagClick(tag)}
+                  data-cx-action-name="gallery-filter-tag"
+                  data-tag={tag}
                   className={`
                     px-3 py-1.5 rounded-full text-sm font-medium transition-colors
                     ${isSelected 
@@ -217,6 +222,7 @@ export default function MediaGallery({ onMediaSelect }: MediaGalleryProps) {
             <p className="text-gray-600 mb-4">No media matches the selected tags.</p>
             <button
               onClick={handleClearFilters}
+              data-cx-action-name="gallery-clear-filters"
               className="text-blue-600 hover:text-blue-700 font-medium"
             >
               Clear filters

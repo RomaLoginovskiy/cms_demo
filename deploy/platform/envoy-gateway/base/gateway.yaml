@@ -1,0 +1,25 @@
+# Both listeners speak plain HTTP: on AWS the NLB terminates TLS on 443 with the ACM certificate;
+# locally the edge proxy forwards localhost:8080 to port 443 (ADR-018).
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cms-edge
+  namespace: edge
+spec:
+  gatewayClassName: envoy
+  listeners:
+    - name: web
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: websecure
+      protocol: HTTP
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              edge.cms-demo/routes: "true"

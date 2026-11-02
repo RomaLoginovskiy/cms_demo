@@ -1,0 +1,9 @@
+# APP_VERSION is rewritten by the same promotion commit that changes the image tags.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-info
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+data:
+  APP_VERSION: unset

@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Role ARNs and the per-environment key prefixes are patched in by the external-secrets ApplicationSet.
+resources:
+  - serviceaccounts.yaml
+  - clustersecretstores.yaml

@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cms-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: cms-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: canvas-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: canvas-frontend

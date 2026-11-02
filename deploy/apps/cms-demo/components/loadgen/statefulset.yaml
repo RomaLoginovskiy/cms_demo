@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: canvas-load
+  labels:
+    app: canvas-load
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  serviceName: canvas-load-headless
+  # Keep replicas in sync with shard.count in load.yaml.
+  replicas: 1
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: canvas-load
+  template:
+    metadata:
+      labels:
+        app: canvas-load
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: canvas-load
+          image: canvas-load
+          ports:
+            - containerPort: 8090
+              name: http
+            - containerPort: 9091
+              name: metrics
+          env:
+            - name: CANVAS_LOAD_IN_CLUSTER
+              value: "true"
+            # The namespace is hard-coded in the load generator's leader discovery.
+            - name: CANVAS_LOAD_LEADER_URL
+              value: "http://canvas-load-0.canvas-load-headless.cms-demo.svc.cluster.local:8090"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: "500m"
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 1536Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9091
+            initialDelaySeconds: 20
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: canvas-load-config

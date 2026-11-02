@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms-backend
+  labels:
+    app: cms-backend
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: cms-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http

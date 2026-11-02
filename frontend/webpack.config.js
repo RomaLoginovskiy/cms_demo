@@ -37,7 +37,8 @@ module.exports = (_env, argv) => {
         },
         {
           test: /\.css$/,
-          use: ['style-loader', 'css-loader']
+          // postcss-loader runs Tailwind (postcss.config.js); without it @tailwind directives ship uncompiled.
+          use: ['style-loader', 'css-loader', 'postcss-loader']
         }
       ]
     },

@@ -5,15 +5,20 @@ import {
   normalizeCoralogixDomain,
   resetCoralogixRumForTests,
   resolveOtlpTracesUrl,
+  resolveSessionRecordingEnabled,
   resolveTrackSoftNavigations,
-  rumSendCustomMeasurement
+  rumSendCustomMeasurement,
+  rumTrackEvent
 } from './coralogixRum';
+import { resetRumUserContextWarningsForTests } from './rumUserContext';
 import { CoralogixRum } from '@coralogix/browser';
 
 jest.mock('@coralogix/browser', () => ({
   CoralogixRum: {
     init: jest.fn(),
-    sendCustomMeasurement: jest.fn()
+    log: jest.fn(),
+    sendCustomMeasurement: jest.fn(),
+    setUserContext: jest.fn()
   },
   CoralogixLogSeverity: {
     Info: 'info',
@@ -23,9 +28,18 @@ jest.mock('@coralogix/browser', () => ({
   }
 }));
 
+function encodeRumUser(payload: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify(payload), 'utf8')
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
 describe('coralogixRum', () => {
   beforeEach(() => {
     resetCoralogixRumForTests();
+    resetRumUserContextWarningsForTests();
     jest.clearAllMocks();
     delete window.__APP_CONFIG__;
     jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -34,6 +48,7 @@ describe('coralogixRum', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    window.history.pushState(null, '', '/');
   });
 
   it('stays disabled when runtime public key is absent', () => {
@@ -78,6 +93,10 @@ describe('coralogixRum', () => {
       sessionConfig: {
         sessionSampleRate: 25
       },
+      sessionRecordingConfig: {
+        enable: false,
+        autoStartSessionRecording: false
+      },
       trackSoftNavigations: true,
       tracesExporter: expect.any(Function),
       traceParentInHeader: {
@@ -115,6 +134,158 @@ describe('coralogixRum', () => {
         url: '/api/media'
       }
     });
+  });
+
+  it('treats blank sample rates as the default 100', () => {
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_RUM_SESSION_SAMPLE_RATE: '',
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true',
+      CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE: '   '
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.init).toHaveBeenCalledWith(expect.objectContaining({
+      sessionConfig: { sessionSampleRate: 100 },
+      sessionRecordingConfig: {
+        enable: true,
+        autoStartSessionRecording: true,
+        recordConsoleEvents: true,
+        sessionRecordingSampleRate: 100
+      }
+    }));
+  });
+
+  it('respects explicit sample rates and clamps out-of-range values', () => {
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_RUM_SESSION_SAMPLE_RATE: '250',
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '1',
+      CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE: '25'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.init).toHaveBeenCalledWith(expect.objectContaining({
+      sessionConfig: { sessionSampleRate: 100 },
+      sessionRecordingConfig: expect.objectContaining({ sessionRecordingSampleRate: 25 })
+    }));
+  });
+
+  it('keeps session recording disabled unless explicitly enabled', () => {
+    expect(resolveSessionRecordingEnabled({})).toBe(false);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'false' })).toBe(false);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '' })).toBe(false);
+    expect(resolveSessionRecordingEnabled({
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '${CORALOGIX_RUM_SESSION_RECORDING_ENABLED}'
+    })).toBe(false);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true' })).toBe(true);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '1' })).toBe(true);
+  });
+
+  it('applies loadgen rum_user as user context with account fields', () => {
+    const rumUser = {
+      user_id: 'load-3-ab12cd34',
+      user_name: 'Calm Panda',
+      user_email: 'loaduser-3@rum-demo.invalid',
+      user_metadata: { role: 'editor', plan: 'pro', loadgen: '1' }
+    };
+    window.history.pushState(null, '', `/cms/?rum_user=${encodeRumUser(rumUser)}`);
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_ORGANIZATION_NAME: 'Northwind Studio'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.setUserContext).toHaveBeenCalledTimes(1);
+    expect(CoralogixRum.setUserContext).toHaveBeenCalledWith({
+      user_id: 'load-3-ab12cd34',
+      user_name: 'Calm Panda',
+      user_email: 'loaduser-3@rum-demo.invalid',
+      account_id: 'pro',
+      account_name: 'Northwind Studio',
+      user_metadata: { role: 'editor', plan: 'pro', loadgen: '1' }
+    });
+  });
+
+  it('defaults loadgen user_name to user_id and account_id to free', () => {
+    const rumUser = {
+      user_id: 'load-4-ef56',
+      user_metadata: { loadgen: 1 }
+    };
+    window.history.pushState(null, '', `/cms/upload?rum_user=${encodeRumUser(rumUser)}`);
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.setUserContext).toHaveBeenCalledWith({
+      user_id: 'load-4-ef56',
+      user_name: 'load-4-ef56',
+      account_id: 'free',
+      account_name: 'Acme Digital Works',
+      user_metadata: { loadgen: 1 }
+    });
+  });
+
+  it('does not apply rum_user without the loadgen marker', () => {
+    const rumUser = {
+      user_id: 'manual-user',
+      user_metadata: { role: 'admin', plan: 'free' }
+    };
+    window.history.pushState(null, '', `/cms/?rum_user=${encodeRumUser(rumUser)}`);
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.setUserContext).not.toHaveBeenCalled();
+  });
+
+  it('does not apply rum_user when the payload is not valid base64url JSON', () => {
+    window.history.pushState(null, '', '/cms/?rum_user=%%%not-base64');
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.setUserContext).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('rum_user'));
+  });
+
+  it('does not apply user context when RUM is disabled', () => {
+    window.history.pushState(null, '', `/cms/?rum_user=${encodeRumUser({
+      user_id: 'load-1',
+      user_metadata: { loadgen: '1' }
+    })}`);
+
+    expect(initializeCoralogixRum()).toBe(false);
+
+    expect(CoralogixRum.setUserContext).not.toHaveBeenCalled();
+  });
+
+  it('rumTrackEvent logs a cms_funnel info event only after init', () => {
+    rumTrackEvent('media_uploaded', { media_type: 'image/png', file_size_bytes: 10 });
+    expect(CoralogixRum.log).not.toHaveBeenCalled();
+
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key'
+    };
+    initializeCoralogixRum();
+
+    rumTrackEvent('media_uploaded', { media_type: 'image/png', file_size_bytes: 10 });
+
+    expect(CoralogixRum.log).toHaveBeenCalledWith(
+      'info',
+      'media_uploaded',
+      { media_type: 'image/png', file_size_bytes: 10 },
+      { event_type: 'cms_funnel' }
+    );
   });
 
   it('disables soft navigation tracking when env is false', () => {

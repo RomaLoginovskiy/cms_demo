@@ -1,0 +1,11 @@
+# Publishes HTTPRoute hostnames as Route 53 aliases to the Gateway's NLB address.
+provider:
+  name: aws
+sources:
+  - gateway-httproute
+policy: sync
+registry: txt
+interval: 1m
+resources:
+  requests: { cpu: 10m, memory: 64Mi }
+  limits: { memory: 128Mi }

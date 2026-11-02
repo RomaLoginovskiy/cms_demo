@@ -1,0 +1,24 @@
+# CRDs come from gateway-crds-helm (crds-values.yaml).
+crds:
+  enabled: false
+
+config:
+  envoyGateway:
+    gateway:
+      controllerName: gateway.envoyproxy.io/gatewayclass-controller
+    provider:
+      type: Kubernetes
+      kubernetes:
+        # Proxies and their Service run in the Gateway's namespace ("edge"), so NetworkPolicies and
+        # the stable Service name cms-edge.edge.svc refer to one place (ADR-018).
+        deploy:
+          type: GatewayNamespace
+    logging:
+      level:
+        default: info
+
+deployment:
+  envoyGateway:
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits: { memory: 512Mi }

@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Browser load generator (ADR-002). Its control API is unauthenticated: ClusterIP only, never routed.
+resources:
+  - configmap.yaml
+  - statefulset.yaml
+  - services.yaml

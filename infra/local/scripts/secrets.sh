@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Writes real secret values from infra/local/.secrets.env into floci Secrets Manager.
+# Without the file the Terraform placeholders stay (RUM off, export rejected, captioning off).
+. "$(dirname "$0")/lib.sh"
+use_identity
+
+file="$LOCAL_DIR/.secrets.env"
+if [ ! -f "$file" ]; then
+  warn "no $file; keeping placeholder secrets (copy .secrets.env.example to send real telemetry)"
+  exit 0
+fi
+set -a; . "$file"; set +a
+
+put() {
+  local name="$1" json="$2"
+  aws secretsmanager put-secret-value --endpoint-url "$FLOCI_URL" \
+    --secret-id "$PROJECT/local/$name" --secret-string "$json" >/dev/null
+  log "updated secret $PROJECT/local/$name"
+}
+
+json() { python3 -I -c 'import json,sys; print(json.dumps({sys.argv[1]: sys.argv[2]}))' "$1" "$2"; }
+
+[ -n "${CORALOGIX_PRIVATE_KEY:-}" ] && put coralogix-ingest "$(json PRIVATE_KEY "$CORALOGIX_PRIVATE_KEY")"
+[ -n "${CORALOGIX_RUM_PUBLIC_KEY:-}" ] && put coralogix-rum "$(json RUM_PUBLIC_KEY "$CORALOGIX_RUM_PUBLIC_KEY")"
+[ -n "${LLM_API_KEY:-}" ] && put llm "$(json API_KEY "$LLM_API_KEY")"
+exit 0

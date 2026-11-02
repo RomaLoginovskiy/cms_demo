@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-info
+data:
+  APP_VERSION: sha-000000000000

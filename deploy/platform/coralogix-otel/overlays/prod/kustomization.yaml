@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - ../../base
+helmCharts:
+  - name: otel-integration
+    repo: https://cgx.jfrog.io/artifactory/coralogix-charts-virtual
+    version: 0.0.371
+    releaseName: otel-coralogix-integration
+    namespace: observability
+    valuesFile: ../../base/values.yaml
+    additionalValuesFiles:
+      - values.yaml
+patches:
+  # Q3: replace with the real public hostname (same value as public_hostname in infra.tfvars).
+  - target:
+      kind: HTTPRoute
+      name: rum-traces
+    patch: |-
+      - op: add
+        path: /spec/hostnames
+        value: ["cms.REPLACE_WITH_DOMAIN"]

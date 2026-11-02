@@ -4,7 +4,7 @@ import { Browser, chromium } from 'playwright';
 import { LoadConfig, EnginePhase } from '../config/types';
 import { parseDurationMs } from '../config/loadConfig';
 import { applyScenarioSafe } from '../config/scenarios';
-import { applyResolvedTarget, coerceTargetUrl } from '../config/resolveTargetUrl';
+import { applyResolvedTarget, coerceTargetUrl, resolveTargetApp } from '../config/resolveTargetUrl';
 import { validateConfig } from '../config/validate';
 import { normalizeUsers } from '../config/usersConfig';
 import { resolveShard, isControlShard } from '../config/shard';
@@ -20,6 +20,8 @@ import { RUM_DEMO_BATCH_PRESETS, RUM_DEMO_SCENARIOS } from '../rum/rumDemoCatalo
 import { ActionRecorder } from './ActionRecorder';
 import { BoardListPage } from '../pages/BoardListPage';
 import { cleanupBoardsViaRest } from '../cleanup/restCleanup';
+import { cleanupCmsMedia } from '../cms/cmsApi';
+import { resetOwnedMedia } from '../cms/ownedMedia';
 import { probeCms } from '../behaviors/mediaPlacer';
 import { GlobalMetricsCollector } from './ActionRecorder';
 import { BoardResolver } from './BoardResolver';
@@ -33,6 +35,7 @@ import {
 } from '../metrics/prometheus';
 import { probeFrontend, waitForFrontend } from './probes';
 import { evaluateAbortCondition } from './abortPolicy';
+import { shouldAutoResume } from './autoResumePolicy';
 
 export class BrowserLoadEngine {
   private config: LoadConfig;
@@ -45,6 +48,7 @@ export class BrowserLoadEngine {
   private warmupComplete = false;
   private degraded = false;
   private paused = false;
+  private pausedForTargetDown = false;
   private durationTimer: NodeJS.Timeout | null = null;
   private reportTimer: NodeJS.Timeout | null = null;
   private probeTimer: NodeJS.Timeout | null = null;
@@ -166,7 +170,7 @@ export class BrowserLoadEngine {
   async reconfigureTarget(url: string): Promise<void> {
     await this.pause();
 
-    const coerced = coerceTargetUrl(url);
+    const coerced = coerceTargetUrl(url, resolveTargetApp(this.config));
     this.config.target.frontend_base_url = coerced;
     const resolved = applyResolvedTarget(this.config);
     if (resolved.rewrittenFrom) {
@@ -201,20 +205,26 @@ export class BrowserLoadEngine {
 
   private clusterHint(msg: string): string {
     if (!isInClusterFlag()) return msg;
-    return `${msg} (in cluster use http://canvas-frontend, not localhost)`;
+    const service = resolveTargetApp(this.config) === 'cms' ? 'http://cms-frontend/cms' : 'http://canvas-frontend';
+    return `${msg} (in cluster use ${service}, not localhost)`;
+  }
+
+  private targetLabel(): string {
+    return resolveTargetApp(this.config) === 'cms' ? 'cms-frontend' : 'canvas-frontend';
   }
 
   private async beginLoadIfTargetReady(): Promise<void> {
     const url = this.config.target.frontend_base_url;
-    this.statusMessage = `Waiting for canvas-frontend at ${url}…`;
+    this.statusMessage = `Waiting for ${this.targetLabel()} at ${url}…`;
     this.setPhase('idle');
 
     const ready = await waitForFrontend(url, 120_000);
     if (!ready) {
       this.paused = true;
+      this.pausedForTargetDown = true;
       this.setPhase('paused');
       this.statusMessage = this.clusterHint(
-        `Canvas frontend not reachable at ${url}`
+        `${this.targetLabel()} not reachable at ${url}`
       );
       console.error(this.statusMessage);
       return;
@@ -223,13 +233,21 @@ export class BrowserLoadEngine {
     this.frontendReachable = true;
     frontendProbe.set(1);
     this.statusMessage = 'Target ready';
+    if (this.config.run.cleanup && this.isControlPlane() && resolveTargetApp(this.config) === 'cms') {
+      // Items left by a previous run (crash, kill) would otherwise pile up in the gallery.
+      await cleanupCmsMedia(this.config);
+      resetOwnedMedia();
+    }
     await this.rampTo(this.targetCount);
   }
 
   async stop(): Promise<void> {
     this.setPhase('ramping_down');
     await this.rampTo(0);
-    if (this.config.run.cleanup && this.isControlPlane()) {
+    if (this.config.run.cleanup && this.isControlPlane() && resolveTargetApp(this.config) === 'cms') {
+      await cleanupCmsMedia(this.config);
+      resetOwnedMedia();
+    } else if (this.config.run.cleanup && this.isControlPlane()) {
       await cleanupBoardsViaRest(this.config);
       if (this.browser) {
         const ctx = await this.browser.newContext();
@@ -255,6 +273,7 @@ export class BrowserLoadEngine {
 
   async pause(): Promise<void> {
     this.paused = true;
+    this.pausedForTargetDown = false;
     this.setPhase('paused');
     for (const u of this.users.values()) {
       await u.stop();
@@ -283,6 +302,7 @@ export class BrowserLoadEngine {
     }
 
     this.paused = false;
+    this.pausedForTargetDown = false;
     this.degraded = false;
     this.frontendReachable = true;
     frontendProbe.set(1);
@@ -341,8 +361,19 @@ export class BrowserLoadEngine {
   }
 
   async applyScenario(name: string): Promise<void> {
+    const prevTarget = this.config.target.frontend_base_url;
     applyScenarioSafe(this.config, name);
+    applyResolvedTarget(this.config);
     this.userShardPlan = this.applyShardPlan();
+
+    // Switching app (canvas <-> cms) changes the target: restart users against the new frontend.
+    if (this.config.target.frontend_base_url !== prevTarget) {
+      const wasPaused = this.paused;
+      await this.reconfigureTarget(this.config.target.frontend_base_url);
+      if (!wasPaused && this.frontendReachable) await this.resume();
+      return;
+    }
+
     if (!this.paused) await this.rampTo(this.targetCount);
   }
 
@@ -430,10 +461,17 @@ export class BrowserLoadEngine {
       Object.assign(merged.shard, partial.shard);
     }
     if (partial.profiles?.mix) Object.assign(merged.profiles.mix, partial.profiles.mix);
+    if (partial.profiles?.cms) Object.assign(merged.profiles.cms, partial.profiles.cms);
     if (partial.chaos) Object.assign(merged.chaos, partial.chaos);
     if (partial.run) Object.assign(merged.run, partial.run);
+    if (partial.target?.app) {
+      merged.target.app = partial.target.app;
+    }
     if (partial.target?.frontend_base_url) {
-      merged.target.frontend_base_url = coerceTargetUrl(partial.target.frontend_base_url);
+      merged.target.frontend_base_url = coerceTargetUrl(
+        partial.target.frontend_base_url,
+        resolveTargetApp(merged)
+      );
     }
     if (partial.rum_batch) {
       merged.rum_batch = {
@@ -535,6 +573,7 @@ export class BrowserLoadEngine {
         );
         if (this.users.size === 0) {
           this.paused = true;
+          this.pausedForTargetDown = true;
           this.setPhase('paused');
         }
         return;
@@ -604,6 +643,24 @@ export class BrowserLoadEngine {
         `Paused: ${this.config.target.frontend_base_url} unreachable`
       );
       await this.pause();
+      this.pausedForTargetDown = true;
+    } else if (
+      shouldAutoResume({
+        autoResumeEnabled: this.config.run.auto_resume,
+        pausedForTargetDown: this.pausedForTargetDown,
+        paused: this.paused,
+        degraded: this.degraded,
+        frontendReachable: this.frontendReachable,
+        rampInProgress: this.rampInProgress
+      })
+    ) {
+      console.log(`Target back online at ${target} — auto-resuming`);
+      try {
+        await this.resume();
+      } catch (err) {
+        console.error('Auto-resume failed:', err);
+        this.pausedForTargetDown = true;
+      }
     } else if (this.frontendReachable && !wasUp && this.paused && !this.degraded) {
       this.statusMessage = `Target back online at ${this.config.target.frontend_base_url}. Click Resume.`;
     }

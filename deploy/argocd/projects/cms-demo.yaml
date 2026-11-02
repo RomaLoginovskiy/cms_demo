@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: cms-demo
+  namespace: argocd
+  annotations:
+    # Before the ApplicationSets (wave 0) that reference it.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: The cms-demo application (namespace comes from the platform "namespaces" app)
+  sourceRepos:
+    - https://github.com/RomaLoginovskiy/cms_demo.git
+    # floci only: local Git mirror (infra/local/docker-compose.yml, make local-sync)
+    - http://172.30.0.11:3000/cms/cms_demo.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: cms-demo
+  # Namespaced kinds only.
+  clusterResourceWhitelist: []

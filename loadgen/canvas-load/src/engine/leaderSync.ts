@@ -43,7 +43,7 @@ export async function syncFromLeader(engine: BrowserLoadEngine): Promise<void> {
     shard: cfg.shard,
     run: { paused: Boolean(state?.paused) },
     ...(cfg.target?.frontend_base_url
-      ? { target: { frontend_base_url: cfg.target.frontend_base_url } }
+      ? { target: { app: cfg.target.app, frontend_base_url: cfg.target.frontend_base_url } }
       : {})
   } as Partial<LoadConfig>;
 

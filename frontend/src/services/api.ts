@@ -1,5 +1,6 @@
 import { Media, UploadMediaRequest, UpdateMediaRequest } from '../types';
 import { measurementService } from './measurements';
+import { rumTrackEvent } from '../observability/coralogixRum';
 
 // Use empty string for Docker deployment (nginx proxy handles routing)
 // or fallback to localhost:7043 for local development
@@ -56,6 +57,31 @@ async function fetchWithTracing(url: string, options: RequestInit = {}): Promise
     
     throw error;
   }
+}
+
+export class ApiResponseError extends Error {
+  readonly status: number;
+
+  constructor(operation: string, status: number) {
+    super(`${operation} failed with status ${status}`);
+    this.name = 'ApiResponseError';
+    this.status = status;
+  }
+}
+
+function assertOk(response: Response, operation: string): void {
+  if (!response.ok) {
+    throw new ApiResponseError(operation, response.status);
+  }
+}
+
+// Funnel event data must stay free of ids, file names, titles and tags.
+function describeFailure(error: unknown): string {
+  if (error instanceof ApiResponseError) {
+    return String(error.status);
+  }
+
+  return error instanceof TypeError ? 'network_error' : 'unknown';
 }
 
 export const mediaApi = {
@@ -119,6 +145,7 @@ export const mediaApi = {
         method: 'POST',
         body: formData
       });
+      assertOk(response, 'Upload');
       
       const uploadEndTime = performance.now();
       const uploadDuration = uploadEndTime - uploadStartTime;
@@ -139,6 +166,11 @@ export const mediaApi = {
           true
         );
       }
+
+      rumTrackEvent('media_uploaded', {
+        media_type: files.item(0)?.type || 'unknown',
+        file_size_bytes: totalFileSize
+      });
       
       return result;
     } catch (error) {
@@ -159,6 +191,8 @@ export const mediaApi = {
           false
         );
       }
+
+      rumTrackEvent('media_upload_failed', { status_or_reason: describeFailure(error) });
       
       throw error;
     }
@@ -166,21 +200,36 @@ export const mediaApi = {
 
   // Update media metadata
   async update(id: string, data: UpdateMediaRequest): Promise<Media> {
-    const response = await fetchWithTracing(`${API_BASE_URL}/api/media/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    });
-    return response.json();
+    try {
+      const response = await fetchWithTracing(`${API_BASE_URL}/api/media/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      assertOk(response, 'Update');
+      const result = await response.json();
+      rumTrackEvent('media_updated');
+      return result;
+    } catch (error) {
+      rumTrackEvent('media_update_failed', { status_or_reason: describeFailure(error) });
+      throw error;
+    }
   },
 
   // Delete media
   async delete(id: string): Promise<void> {
-    await fetchWithTracing(`${API_BASE_URL}/api/media/${id}`, {
-      method: 'DELETE'
-    });
+    try {
+      const response = await fetchWithTracing(`${API_BASE_URL}/api/media/${id}`, {
+        method: 'DELETE'
+      });
+      assertOk(response, 'Delete');
+      rumTrackEvent('media_deleted');
+    } catch (error) {
+      rumTrackEvent('media_delete_failed', { status_or_reason: describeFailure(error) });
+      throw error;
+    }
   },
 
   // Get media file URL

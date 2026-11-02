@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cms-demo
+resources:
+  - ../../base
+components:
+  - ../../components/loadgen
+# Fallback only: the cms-demo ApplicationSet sets the registry from the cluster Secret and, locally,
+# the tag from its image_tag_override annotation (written by `make local-images`).
+images:
+  - name: cms-backend
+    newTag: local-unset
+  - name: media-worker
+    newTag: local-unset
+  - name: cms-frontend
+    newTag: local-unset
+  - name: canvas-backend
+    newTag: local-unset
+  - name: canvas-frontend
+    newTag: local-unset
+  - name: canvas-load
+    newTag: local-unset
+patches:
+  - path: patches/environment.yaml
+  - path: patches/build-info.yaml

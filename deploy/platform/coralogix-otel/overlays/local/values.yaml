@@ -1,0 +1,7 @@
+global:
+  clusterName: cms-local
+
+# floci runs the k3s node in a private PID namespace, so even a hostPID pod cannot map the kernel's
+# PIDs and the eBPF profiler fails its system analysis (floci gap G17). Profiles are verified on AWS.
+opentelemetry-ebpf-profiler:
+  enabled: false

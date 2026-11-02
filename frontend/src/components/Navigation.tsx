@@ -25,6 +25,7 @@ export default function Navigation({ onNavigate }: NavigationProps) {
             {navItems.map((item) => (
               <button
                 key={item.path}
+                data-cx-action-name={`nav-${item.label.toLowerCase()}`}
                 onClick={() => {
                   // Track navigation events
                   measurementService.sendCustomMeasurement('navigation_clicks', 1, {

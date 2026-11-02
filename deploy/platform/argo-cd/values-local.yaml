@@ -1,0 +1,7 @@
+# floci: single k3s node, keep requests small.
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+repoServer:
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }

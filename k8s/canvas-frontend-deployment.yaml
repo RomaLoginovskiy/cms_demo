@@ -50,6 +50,8 @@ spec:
           value: "dev"
         - name: CORALOGIX_RUM_SESSION_SAMPLE_RATE
           value: "100"
+        - name: CORALOGIX_RUM_SESSION_RECORDING_ENABLED
+          value: "false"
         - name: CORALOGIX_OTLP_TRACES_URL
           value: "/v1/traces"
         - name: RUM_DEMO_ENABLED

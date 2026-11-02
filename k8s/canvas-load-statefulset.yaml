@@ -24,7 +24,7 @@ metadata:
 spec:
   serviceName: canvas-load-headless
   # Keep replicas in sync with shard.count in canvas-load-config ConfigMap
-  replicas: 3
+  replicas: 1
   podManagementPolicy: Parallel
   selector:
     matchLabels:
@@ -55,10 +55,10 @@ spec:
           resources:
             requests:
               cpu: "500m"
-              memory: 2Gi
+              memory: 1Gi
             limits:
               cpu: "4"
-              memory: 8Gi
+              memory: 1536Mi
           livenessProbe:
             httpGet:
               path: /healthz

@@ -9,9 +9,11 @@ export const defaultConfig: LoadConfig = {
     ramp_down: '10s',
     scenario: null,
     cleanup: true,
-    paused: true
+    paused: true,
+    auto_resume: false
   },
   target: {
+    app: 'canvas',
     frontend_base_url: 'http://localhost',
     cms_probe_url: null
   },
@@ -56,7 +58,10 @@ export const defaultConfig: LoadConfig = {
       collaborator: 0.28,
       admin: 0.1,
       media_placer: 0.05,
-      complex_placer: 0.05
+      complex_placer: 0.05,
+      cms_uploader: 0,
+      cms_curator: 0,
+      cms_browser: 0
     },
     lurker: {
       mouse_move_interval_ms: 500,
@@ -96,6 +101,13 @@ export const defaultConfig: LoadConfig = {
     text_editor: {
       edit_interval_ms: 2000,
       min_shapes: 1000
+    },
+    cms: {
+      abandon_probability: 0.12,
+      max_owned_items: 5,
+      tag_vocabulary: ['nature', 'product', 'team', 'event', 'archive', 'campaign'],
+      marker_tag: 'loadgen',
+      step_think_ms: 1200
     }
   },
   chaos: {

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: canvas-frontend
+  labels:
+    app: canvas-frontend
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: canvas-frontend
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http

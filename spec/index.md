@@ -1,6 +1,6 @@
 # Spec Index
 
-Last updated: 2026-06-18
+Last updated: 2026-10-30
 
 ## Architecture Decision Records
 
@@ -15,6 +15,10 @@ Last updated: 2026-06-18
 - [ADR-014: RUM Soft Navigation Tracking](adr/ADR-014-rum-soft-navigation-tracking.md) — Status: Proposed
 - [ADR-015: Canvas Blank Render Layout Fix](adr/ADR-015-canvas-blank-render-layout-fix.md) — Status: Proposed
 - [ADR-016: Coralogix OTEL Helm Migration](adr/ADR-016-coralogix-otel-helm-migration.md) — Status: Proposed
+- [ADR-017: AWS EKS Platform with Terraform, Argo CD and floci](adr/ADR-017-aws-eks-gitops-platform.md) — Status: Proposed
+- [ADR-018: Edge Routing on EKS with Gateway API (Envoy Gateway)](adr/ADR-018-eks-edge-routing-gateway-api.md) — Status: Proposed
+- [ADR-019: Workload Identity via IRSA in All Environments](adr/ADR-019-workload-identity-irsa.md) — Status: Proposed
+- [ADR-020: Mapping State and Messaging onto AWS Services (Phased)](adr/ADR-020-aws-data-services-mapping.md) — Status: Proposed
 - [ADR-006: Synthetic RUM User Context for Load Testing](adr/ADR-006-rum-synthetic-user-context-load-testing.md) — Status: Proposed
 - [ADR-007: Loadgen Session Pacing for Long RUM Replays](adr/ADR-007-loadgen-long-rum-sessions.md) — Status: Proposed
 - [ADR-008: Standard RUM Session Labels for Load Testing](adr/ADR-008-rum-standard-session-labels.md) — Status: Proposed
@@ -26,6 +30,8 @@ Last updated: 2026-06-18
 - [Canvas Load Testing](architecture/canvas-load-testing.md)
 - [Canvas Coralogix RUM Demo](architecture/canvas-rum-demo.md)
 - [Coralogix OTEL Helm Migration](architecture/coralogix-otel-helm-migration.md)
+- [AWS EKS Platform Architecture](architecture/aws-eks-platform.md)
+- [AWS EKS Delivery Plan](architecture/aws-eks-delivery-plan.md)
 
 ## Component Contracts
 
@@ -48,3 +54,7 @@ Last updated: 2026-06-18
 - [CMS Frontend RUM Tracing](components/cms-frontend-rum-tracing.md)
 - [RUM Soft Navigation Tracking](components/rum-soft-navigation.md)
 - [Canvas Backend OpenTelemetry](components/canvas-backend-otel.md)
+- [Terraform Infrastructure](components/terraform-infrastructure.md)
+- [GitOps with Argo CD](components/gitops-argocd.md)
+- [floci Local AWS Environment](components/floci-local-environment.md)
+- [cms-demo Workload Contract on EKS](components/cms-demo-workload-contract.md)

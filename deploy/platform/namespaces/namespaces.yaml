@@ -1,0 +1,27 @@
+# Namespaces whose labels matter (Pod Security Admission, Gateway allowedRoutes selector).
+# Charts with plain needs create their own namespaces (CreateNamespace=true).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cms-demo
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    edge.cms-demo/routes: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observability
+  labels:
+    # hostPath log collection, host metrics and the eBPF profiler need privileged pods.
+    pod-security.kubernetes.io/enforce: privileged
+    edge.cms-demo/routes: "true"

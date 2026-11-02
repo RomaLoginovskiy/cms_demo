@@ -5,7 +5,53 @@ type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
+/** Scenario mixes merge additively, so app switches must zero every profile of the other app. */
+const CANVAS_MIX_OFF = {
+  lurker: 0,
+  active_drawer: 0,
+  collaborator: 0,
+  admin: 0,
+  media_placer: 0,
+  complex_placer: 0,
+  text_editor: 0
+};
+
+const CMS_MIX_OFF = {
+  cms_uploader: 0,
+  cms_curator: 0,
+  cms_browser: 0
+};
+
 export const scenarioOverrides: Record<string, DeepPartial<LoadConfig>> = {
+  cms: {
+    target: { app: 'cms', frontend_base_url: 'http://localhost/cms' },
+    users: { think_time_ms: 1500 },
+    chaos: { enabled: false },
+    profiles: {
+      mix: {
+        ...CANVAS_MIX_OFF,
+        cms_uploader: 0.2,
+        cms_curator: 0.5,
+        cms_browser: 0.3
+      }
+    }
+  },
+  canvas: {
+    target: { app: 'canvas', frontend_base_url: 'http://localhost' },
+    users: { think_time_ms: 100 },
+    profiles: {
+      mix: {
+        ...CMS_MIX_OFF,
+        lurker: 0.28,
+        active_drawer: 0.24,
+        collaborator: 0.28,
+        admin: 0.1,
+        media_placer: 0.05,
+        complex_placer: 0.05,
+        text_editor: 0
+      }
+    }
+  },
   smoke: {
     run: { duration: '60s' },
     users: { count: 5, think_time_ms: 100 },

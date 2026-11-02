@@ -1,0 +1,14 @@
+# k3s CoreDNS extension for floci (gap G16). floci starts the k3s container with
+# --dns 172.30.0.10, but Docker puts its embedded resolver (127.0.0.11) in front;
+# k3s treats that as loopback and falls back to 8.8.8.8, so pods cannot resolve
+# `floci` or the container names floci advertises (MSK brokers). This stanza is
+# imported into the main server block ahead of k3s's own `forward`, so every
+# non-cluster name goes to floci's DNS, which also forwards public names.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  floci.override: |
+    forward . 172.30.0.10

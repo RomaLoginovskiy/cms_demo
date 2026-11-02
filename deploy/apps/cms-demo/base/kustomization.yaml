@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Environment-agnostic: no registry, tag, hostname, storageClassName or emulator address here.
+# Overlays add tags/hostnames; the cms-demo ApplicationSet adds the registry (GitOps Bridge).
+namespace: cms-demo
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: cms-demo
+    includeSelectors: false
+resources:
+  - config/external-secrets.yaml
+  - config/build-info.yaml
+  - storage/pvcs.yaml
+  - jobs/kafka-topics.yaml
+  - cms-backend/deployment.yaml
+  - cms-backend/service.yaml
+  - media-worker/deployment.yaml
+  - cms-frontend/deployment.yaml
+  - cms-frontend/service.yaml
+  - canvas-backend/deployment.yaml
+  - canvas-backend/service.yaml
+  - canvas-frontend/deployment.yaml
+  - canvas-frontend/service.yaml
+  - routes/httproutes.yaml
+  - routes/backend-traffic-policy.yaml
+  - network-policies/policies.yaml
