@@ -1,4 +1,4 @@
-# Opt-in: egress for canvas-load → canvas-frontend and cms-backend
+# Opt-in: egress for canvas-load → canvas-frontend, cms-frontend and cms-backend
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -15,6 +15,13 @@ spec:
         - podSelector:
             matchLabels:
               app: canvas-frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+    - to:
+        - podSelector:
+            matchLabels:
+              app: cms-frontend
       ports:
         - protocol: TCP
           port: 8080

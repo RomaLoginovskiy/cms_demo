@@ -8,6 +8,7 @@ interface TagInputProps {
   readOnly?: boolean;
   maxTags?: number;
   maxTagLength?: number;
+  actionName?: string;
 }
 
 const TagInput: React.FC<TagInputProps> = ({
@@ -18,6 +19,7 @@ const TagInput: React.FC<TagInputProps> = ({
   readOnly = false,
   maxTags = 10,
   maxTagLength = 50,
+  actionName,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,7 @@ const TagInput: React.FC<TagInputProps> = ({
           onKeyDown={handleKeyDown}
           placeholder={tags.length === 0 ? placeholder : ''}
           disabled={disabled}
+          data-cx-action-name={actionName}
           className="flex-1 min-w-[120px] px-1 py-1 text-sm bg-transparent border-none outline-none focus:ring-0 placeholder-gray-400"
         />
       )}

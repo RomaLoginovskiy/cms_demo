@@ -1,4 +1,5 @@
 import { CoralogixLogSeverity, CoralogixRum } from '@coralogix/browser';
+import { isLoadgenSyntheticUser, parseRumUserParam } from './rumUserContext';
 
 /** OTLP/JSON trace batch from Coralogix RUM tracesExporter (not exported by @coralogix/browser). */
 export type RumTraceExporterPayload = Record<string, unknown>;
@@ -18,6 +19,8 @@ export interface RuntimeAppConfig {
   CORALOGIX_ENVIRONMENT?: string;
   CORALOGIX_APP_VERSION?: string;
   CORALOGIX_RUM_SESSION_SAMPLE_RATE?: string;
+  CORALOGIX_RUM_SESSION_RECORDING_ENABLED?: string;
+  CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE?: string;
   CORALOGIX_RUM_TRACK_SOFT_NAVIGATIONS?: string;
   CORALOGIX_OTLP_TRACES_URL?: string;
 }
@@ -61,11 +64,13 @@ export function initializeCoralogixRum(config: RuntimeAppConfig = window.__APP_C
     sessionConfig: {
       sessionSampleRate: parseSampleRate(config.CORALOGIX_RUM_SESSION_SAMPLE_RATE)
     },
+    sessionRecordingConfig: buildSessionRecordingConfig(config),
     trackSoftNavigations: resolveTrackSoftNavigations(config),
     tracesExporter: createTracesExporter(resolveOtlpTracesUrl(config)),
     traceParentInHeader: buildTraceParentInHeaderConfig()
   });
   initialized = true;
+  applySyntheticUserContext(config);
   return true;
 }
 
@@ -171,6 +176,14 @@ export function rumWarnLog(message: string, data?: Record<string, unknown>, labe
   rumLog(CoralogixLogSeverity.Warn, message, data, labels);
 }
 
+export function rumTrackEvent(name: string, data?: Record<string, unknown>): void {
+  if (!initialized) {
+    return;
+  }
+
+  rumInfoLog(name, data, { event_type: 'cms_funnel' });
+}
+
 export function rumDebugLog(message: string, data?: Record<string, unknown>, labels?: Record<string, string>): void {
   rumLog(CoralogixLogSeverity.Debug, message, data, labels);
 }
@@ -200,6 +213,12 @@ export function resolveTrackSoftNavigations(config: RuntimeAppConfig): boolean {
     return true;
   }
 
+  return raw === 'true' || raw === '1';
+}
+
+/** Session replay is opt-in: disabled unless CORALOGIX_RUM_SESSION_RECORDING_ENABLED is true/1. */
+export function resolveSessionRecordingEnabled(config: RuntimeAppConfig): boolean {
+  const raw = readRuntimeValue(config.CORALOGIX_RUM_SESSION_RECORDING_ENABLED);
   return raw === 'true' || raw === '1';
 }
 
@@ -248,8 +267,45 @@ function redactRumEventUrls<T extends {
   return event;
 }
 
+function buildSessionRecordingConfig(config: RuntimeAppConfig) {
+  if (!resolveSessionRecordingEnabled(config)) {
+    return { enable: false, autoStartSessionRecording: false };
+  }
+
+  return {
+    enable: true,
+    autoStartSessionRecording: true,
+    recordConsoleEvents: true,
+    sessionRecordingSampleRate: parseSampleRate(config.CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE)
+  };
+}
+
+/** Loadgen passes a base64url `rum_user` query param so synthetic sessions carry a stable identity. */
+function applySyntheticUserContext(config: RuntimeAppConfig): void {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const context = parseRumUserParam(new URLSearchParams(window.location.search).get('rum_user'));
+  if (!context || !isLoadgenSyntheticUser(context)) {
+    return;
+  }
+
+  const { user_id, user_name, user_email, user_metadata } = context;
+  CoralogixRum.setUserContext({
+    user_id,
+    user_name: user_name ?? user_id,
+    ...(user_email ? { user_email } : {}),
+    account_id: String(user_metadata?.plan ?? 'free'),
+    account_name: resolveOrganizationName(config),
+    ...(user_metadata ? { user_metadata } : {})
+  });
+}
+
 function parseSampleRate(value?: string): number {
-  const parsed = Number(value);
+  // Unset runtime env vars arrive as "", and Number("") is 0 — treat blank as "use default".
+  const trimmed = value?.trim();
+  const parsed = trimmed ? Number(trimmed) : NaN;
   if (!Number.isFinite(parsed)) {
     return 100;
   }

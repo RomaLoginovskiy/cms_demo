@@ -88,6 +88,20 @@ Verify from inside the pod:
 kubectl exec -n cms-demo deploy/canvas-load -- wget -qO- http://canvas-frontend | head -5
 ```
 
+### CMS mode (Product Analytics funnels)
+
+`target.app: cms` drives the CMS frontend (`http://cms-frontend/cms` in cluster, `http://localhost/cms` via ingress) instead of canvas. The k8s ConfigMap ships in this mode; the admin UI **CMS transactions** / **Canvas** scenario buttons switch between apps at runtime.
+
+| Profile | Transaction |
+|---------|-------------|
+| `cms_curator` | upload → filter by tag → open → edit → save → delete |
+| `cms_uploader` | upload, then back to gallery |
+| `cms_browser` | gallery → tag filter → open/close → stats/about |
+
+Every step clicks a control with a `data-cx-action-name` (e.g. `nav-upload`, `upload-select-file`, `upload-submit-all`, `media-open`, `media-edit`, `media-save`, `media-delete`), so Coralogix RUM records it as a named action usable as a funnel step. The CMS app also logs `media_uploaded` / `media_updated` / `media_deleted` custom events and sets synthetic user context from `rum_user`.
+
+`profiles.cms` tunes it: `abandon_probability` (drop-off per step), `max_owned_items` (per-user inventory cap; oldest is deleted via the UI), `tag_vocabulary`, `marker_tag` (every upload is tagged with it; cleanup on start/stop deletes by it), `step_think_ms`.
+
 ## Local (npm)
 
 ```bash

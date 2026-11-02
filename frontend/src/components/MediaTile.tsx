@@ -37,6 +37,9 @@ export default function MediaTile({ media, onClick }: MediaTileProps) {
   return (
     <div
       className="media-tile cursor-pointer"
+      data-cx-action-name="media-open"
+      role="button"
+      data-media-id={media.id}
       onClick={() => {
         // Track media tile clicks
         measurementService.sendCustomMeasurement('media_tile_clicks', 1, {

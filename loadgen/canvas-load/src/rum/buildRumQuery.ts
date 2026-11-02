@@ -28,7 +28,10 @@ const PROFILE_INTEGRATION_CONTEXT: Record<ProfileName, string> = {
   complex_placer: 'whiteboard_only',
   media_placer: 'cms_media',
   admin: 'admin_api',
-  chaos: 'whiteboard_only'
+  chaos: 'whiteboard_only',
+  cms_uploader: 'cms_media',
+  cms_curator: 'cms_media',
+  cms_browser: 'cms_media'
 };
 
 export function resolveIntegrationContext(

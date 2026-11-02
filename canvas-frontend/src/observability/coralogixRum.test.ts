@@ -5,6 +5,7 @@ import {
   normalizeCoralogixDomain,
   resetCoralogixRumForTests,
   resolveOtlpTracesUrl,
+  resolveSessionRecordingEnabled,
   resolveTrackSoftNavigations,
   rumSendCustomMeasurement
 } from './coralogixRum';
@@ -93,11 +94,8 @@ describe('coralogixRum', () => {
         }
       },
       sessionRecordingConfig: {
-        enable: true,
-        autoStartSessionRecording: true,
-        recordConsoleEvents: true,
-        sessionRecordingSampleRate: 100,
-        recordCanvas: true
+        enable: false,
+        autoStartSessionRecording: false
       },
       trackSoftNavigations: true,
       tracesExporter: expect.any(Function),
@@ -212,10 +210,37 @@ describe('coralogixRum', () => {
     }));
   });
 
-  it('always enables sessionRecordingConfig when RUM initializes', () => {
+  it('disables session recording by default', () => {
     window.__APP_CONFIG__ = {
       CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
       CORALOGIX_ENVIRONMENT: 'test'
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.init).toHaveBeenCalledWith(expect.objectContaining({
+      sessionRecordingConfig: {
+        enable: false,
+        autoStartSessionRecording: false
+      }
+    }));
+  });
+
+  it('resolveSessionRecordingEnabled only opts in on true/1', () => {
+    expect(resolveSessionRecordingEnabled({})).toBe(false);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'false' })).toBe(false);
+    expect(resolveSessionRecordingEnabled({
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '${CORALOGIX_RUM_SESSION_RECORDING_ENABLED}'
+    })).toBe(false);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true' })).toBe(true);
+    expect(resolveSessionRecordingEnabled({ CORALOGIX_RUM_SESSION_RECORDING_ENABLED: '1' })).toBe(true);
+  });
+
+  it('enables sessionRecordingConfig when CORALOGIX_RUM_SESSION_RECORDING_ENABLED is true', () => {
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_ENVIRONMENT: 'test',
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true'
     };
 
     expect(initializeCoralogixRum()).toBe(true);
@@ -234,6 +259,7 @@ describe('coralogixRum', () => {
   it('honors CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE for session replay sampling', () => {
     window.__APP_CONFIG__ = {
       CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true',
       CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE: '50'
     };
 
@@ -242,6 +268,24 @@ describe('coralogixRum', () => {
     expect(CoralogixRum.init).toHaveBeenCalledWith(expect.objectContaining({
       sessionRecordingConfig: expect.objectContaining({
         sessionRecordingSampleRate: 50
+      })
+    }));
+  });
+
+  it('defaults session and recording sample rates to 100 when runtime env values are blank', () => {
+    window.__APP_CONFIG__ = {
+      CORALOGIX_RUM_PUBLIC_KEY: 'public-rum-key',
+      CORALOGIX_RUM_SESSION_SAMPLE_RATE: '',
+      CORALOGIX_RUM_SESSION_RECORDING_ENABLED: 'true',
+      CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE: ' '
+    };
+
+    expect(initializeCoralogixRum()).toBe(true);
+
+    expect(CoralogixRum.init).toHaveBeenCalledWith(expect.objectContaining({
+      sessionConfig: expect.objectContaining({ sessionSampleRate: 100 }),
+      sessionRecordingConfig: expect.objectContaining({
+        sessionRecordingSampleRate: 100
       })
     }));
   });

@@ -15,7 +15,13 @@ export type ProfileName =
   | 'media_placer'
   | 'complex_placer'
   | 'text_editor'
-  | 'chaos';
+  | 'chaos'
+  | 'cms_uploader'
+  | 'cms_curator'
+  | 'cms_browser';
+
+/** Which frontend the virtual users drive. */
+export type TargetApp = 'canvas' | 'cms';
 
 export type BoardMode = 'shared' | 'per_user' | 'pool';
 
@@ -29,6 +35,19 @@ export interface SessionPacingConfig {
   long_profile_max_duration_ms: number;
 }
 
+export interface CmsProfileConfig {
+  /** Chance a user walks away before each funnel step (gives funnels realistic drop-off). */
+  abandon_probability: number;
+  /** Items one user keeps before it deletes its oldest through the UI. */
+  max_owned_items: number;
+  /** Fixed tag set — CMS never deletes tag rows, so free-form tags would grow forever. */
+  tag_vocabulary: string[];
+  /** Tag on every loadgen upload; cleanup deletes by it. */
+  marker_tag: string;
+  /** Pause between funnel steps so RUM registers views and actions in order. */
+  step_think_ms: number;
+}
+
 export interface LoadConfig {
   run: {
     run_id: string | null;
@@ -39,8 +58,12 @@ export interface LoadConfig {
     scenario: string | null;
     cleanup: boolean;
     paused: boolean;
+    /** Resume automatically when the target comes back after the engine paused itself because it was unreachable. */
+    auto_resume: boolean;
   };
   target: {
+    /** Defaults to 'canvas' when omitted. */
+    app?: TargetApp;
     frontend_base_url: string;
     cms_probe_url: string | null;
   };
@@ -112,6 +135,7 @@ export interface LoadConfig {
       edit_interval_ms: number;
       min_shapes: number;
     };
+    cms: CmsProfileConfig;
   };
   chaos: {
     enabled: boolean;

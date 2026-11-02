@@ -3,7 +3,7 @@ import path from 'path';
 import { BrowserLoadEngine } from '../engine/BrowserLoadEngine';
 import { getMetricsText } from '../metrics/prometheus';
 import { LoadConfig } from '../config/types';
-import { coerceTargetUrl, resolveTargetUrl } from '../config/resolveTargetUrl';
+import { coerceTargetUrl, resolveTargetApp, resolveTargetUrl } from '../config/resolveTargetUrl';
 import { validateMergedConfig } from '../config/applyConfig';
 import { RUM_DEMO_BATCH_PRESETS, RUM_DEMO_SCENARIOS, isKnownRumBatchPreset, isKnownRumScenario } from '../rum/rumDemoCatalog';
 import { registerSeedBoardRoute } from './seedBoardRoute';
@@ -59,13 +59,16 @@ export function createControlServer(engine: BrowserLoadEngine, config: LoadConfi
   });
 
   app.post('/api/control/reload-target', async (req, res) => {
-    const body = req.body as { frontend_base_url?: string };
+    const body = req.body as { frontend_base_url?: string; app?: string };
     const raw = body.frontend_base_url?.trim();
     if (!raw) {
       res.status(400).json({ error: 'frontend_base_url required' });
       return;
     }
-    const url = coerceTargetUrl(raw);
+    if (body.app === 'cms' || body.app === 'canvas') {
+      engine.getConfig().target.app = body.app;
+    }
+    const url = coerceTargetUrl(raw, resolveTargetApp(engine.getConfig()));
     try {
       await engine.reconfigureTarget(url);
       res.json(engine.getStateSnapshot());

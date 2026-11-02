@@ -48,12 +48,12 @@ spec:
             name: cms-backend
             port:
               number: 8080
-      # Browser RUM tracesExporter OTLP/JSON (otel-gateway).
+      # Browser RUM tracesExporter OTLP/JSON (Coralogix otel-integration agent).
       - path: /v1/traces
         pathType: Prefix
         backend:
           service:
-            name: otel-gateway
+            name: otel-agent
             port:
               number: 4318
       # CMS frontend is available under /cms while canvas keeps /.

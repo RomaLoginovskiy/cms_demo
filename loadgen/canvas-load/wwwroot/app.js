@@ -1,4 +1,19 @@
-const MIX_KEYS = ['lurker', 'active_drawer', 'collaborator', 'admin', 'media_placer'];
+const MIX_KEYS = [
+  'lurker',
+  'active_drawer',
+  'collaborator',
+  'admin',
+  'media_placer',
+  'complex_placer',
+  'text_editor',
+  'cms_uploader',
+  'cms_curator',
+  'cms_browser'
+];
+
+function clusterTargetFor(cfg) {
+  return cfg.target?.app === 'cms' ? 'http://cms-frontend/cms' : 'http://canvas-frontend';
+}
 
 const dirty = {
   target: false,
@@ -187,6 +202,8 @@ function syncMixFromConfig(mix) {
 async function refresh() {
   const state = await api('/api/control/state');
   const cfg = await api('/api/control/config');
+  const clusterTarget = clusterTargetFor(cfg);
+  const appName = cfg.target?.app === 'cms' ? 'CMS' : 'canvas';
 
   if (
     !autoFixedClusterTarget &&
@@ -197,7 +214,7 @@ async function refresh() {
     try {
       await api('/api/control/reload-target', {
         method: 'POST',
-        body: JSON.stringify({ frontend_base_url: 'http://canvas-frontend' })
+        body: JSON.stringify({ frontend_base_url: clusterTarget, app: cfg.target?.app })
       });
       setDirty('target', false);
       return refresh();
@@ -231,15 +248,15 @@ async function refresh() {
   const hint = document.getElementById('target-hint');
   if (state.inCluster && isLocalhostTarget(state.effectiveTargetUrl)) {
     hint.innerHTML =
-      '<strong>Invalid in Kubernetes:</strong> <code>localhost</code> is the load pod, not the canvas app. Use <code>http://canvas-frontend</code> and click Apply target.';
+      `<strong>Invalid in Kubernetes:</strong> <code>localhost</code> is the load pod, not the ${appName} app. Use <code>${clusterTarget}</code> and click Apply target.`;
   } else if (!state.frontendReachable) {
     hint.innerHTML = state.inCluster
-      ? `From inside the cluster, canvas is at <code>http://canvas-frontend</code> (not host <code>localhost</code>).<br/>
+      ? `From inside the cluster, ${appName} is at <code>${clusterTarget}</code> (not host <code>localhost</code>).<br/>
          Your browser may use <a href="http://localhost/" target="_blank">http://localhost/</a> via ingress — that path does not apply here.`
       : `Start canvas-frontend, then set target to <code>http://localhost</code> or <code>http://localhost:3000</code> for webpack dev.`;
   } else {
     hint.innerHTML = state.inCluster
-      ? 'Running in Kubernetes — target must be <code>http://canvas-frontend</code>.'
+      ? `Running in Kubernetes (${appName}) — target must be <code>${clusterTarget}</code>.`
       : '';
   }
 

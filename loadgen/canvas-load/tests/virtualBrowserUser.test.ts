@@ -67,7 +67,8 @@ function makeConfig(): LoadConfig {
       ramp_down: '0s',
       scenario: null,
       cleanup: false,
-      paused: false
+      paused: false,
+      auto_resume: false
     },
     target: {
       frontend_base_url: 'http://localhost:3000',

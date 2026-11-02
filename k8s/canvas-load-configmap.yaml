@@ -12,15 +12,20 @@ data:
       ramp_up: 30s
       ramp_down: 10s
       cleanup: true
-      paused: true
+      # Always-on synthetic load: start immediately and resume on its own after the target frontend restarts.
+      paused: false
+      auto_resume: true
     target:
-      frontend_base_url: http://canvas-frontend
+      # CMS media transactions (upload -> filter -> open -> edit -> save -> delete) for Product Analytics funnels.
+      # Switch back to canvas with the admin UI "Canvas" scenario, or app: canvas + http://canvas-frontend.
+      app: cms
+      frontend_base_url: http://cms-frontend/cms
     users:
-      count: 150
-      max_contexts_per_pod: 150
-      think_time_ms: 100
+      count: 10
+      max_contexts_per_pod: 10
+      think_time_ms: 1500
     shard:
-      count: 3
+      count: 1
     browser:
       headless: true
       viewport_width: 1280
@@ -34,12 +39,14 @@ data:
       pool_size: 5
     profiles:
       mix:
-        lurker: 0.25
-        active_drawer: 0.25
-        collaborator: 0.30
-        admin: 0.10
-        media_placer: 0.05
-        complex_placer: 0.05
+        cms_uploader: 0.2
+        cms_curator: 0.5
+        cms_browser: 0.3
+      cms:
+        abandon_probability: 0.12
+        max_owned_items: 5
+        marker_tag: loadgen
+        step_think_ms: 1200
     chaos:
       enabled: false
     abort:

@@ -8,7 +8,10 @@ const PROFILE_NAMES: ProfileName[] = [
   'media_placer',
   'complex_placer',
   'text_editor',
-  'chaos'
+  'chaos',
+  'cms_uploader',
+  'cms_curator',
+  'cms_browser'
 ];
 
 export function pickProfile(config: LoadConfig, rng: () => number): ProfileName {
@@ -25,7 +28,9 @@ export function pickProfile(config: LoadConfig, rng: () => number): ProfileName 
     cumulative += weight;
     if (roll < cumulative) return name;
   }
-  return 'lurker';
+  // Rounding left the roll past the last weight: use a profile that is actually in the mix,
+  // so a CMS-only mix never falls back to a canvas profile.
+  return PROFILE_NAMES.find(name => name !== 'chaos' && (mix[name] ?? 0) > 0) ?? 'lurker';
 }
 
 export function pickProfileForTest(mix: Record<string, number>, rng: () => number): string {
