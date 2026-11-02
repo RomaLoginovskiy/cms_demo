@@ -98,6 +98,7 @@ describe('coralogixRum', () => {
         autoStartSessionRecording: false
       },
       trackSoftNavigations: true,
+      ignoreUrls: [expect.any(RegExp)],
       tracesExporter: expect.any(Function),
       traceParentInHeader: {
         enabled: true,
@@ -109,6 +110,8 @@ describe('coralogixRum', () => {
 
     const initOptions = (CoralogixRum.init as jest.Mock).mock.calls[0][0];
     expect(initOptions.traceParentInHeader.enabled).toBe(true);
+    expect(initOptions.ignoreUrls[0].test(`${window.location.origin}/v1/traces`)).toBe(true);
+    expect(initOptions.ignoreUrls[0].test(`${window.location.origin}/api/media`)).toBe(false);
     expect(initOptions.urlBlueprinters.pageUrlBlueprinters[0]('https://example.com/path?token=secret#hash'))
       .toBe('https://example.com/path');
     expect(initOptions.urlBlueprinters.pageUrlBlueprinters[0]('https://user:pass@example.com/path?token=secret#hash'))

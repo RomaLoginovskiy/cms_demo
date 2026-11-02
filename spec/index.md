@@ -19,6 +19,7 @@ Last updated: 2026-10-30
 - [ADR-018: Edge Routing on EKS with Gateway API (Envoy Gateway)](adr/ADR-018-eks-edge-routing-gateway-api.md) — Status: Proposed
 - [ADR-019: Workload Identity via IRSA in All Environments](adr/ADR-019-workload-identity-irsa.md) — Status: Proposed
 - [ADR-020: Mapping State and Messaging onto AWS Services (Phased)](adr/ADR-020-aws-data-services-mapping.md) — Status: Proposed
+- [ADR-026: OpenTelemetry Web SDK in the CMS Frontend](adr/ADR-026-cms-frontend-otel-web-sdk.md) — Status: Proposed (extends ADR-013)
 - [ADR-006: Synthetic RUM User Context for Load Testing](adr/ADR-006-rum-synthetic-user-context-load-testing.md) — Status: Proposed
 - [ADR-007: Loadgen Session Pacing for Long RUM Replays](adr/ADR-007-loadgen-long-rum-sessions.md) — Status: Proposed
 - [ADR-008: Standard RUM Session Labels for Load Testing](adr/ADR-008-rum-standard-session-labels.md) — Status: Proposed
