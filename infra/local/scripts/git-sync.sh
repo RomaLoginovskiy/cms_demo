@@ -32,7 +32,10 @@ export GIT_COMMITTER_NAME="cms-local" GIT_COMMITTER_EMAIL="cms-local@local.test"
 GIT_INDEX_FILE="$index" git -C "$ROOT" read-tree HEAD
 GIT_INDEX_FILE="$index" git -C "$ROOT" add -A
 tree="$(GIT_INDEX_FILE="$index" git -C "$ROOT" write-tree)"
-commit="$(git -C "$ROOT" commit-tree "$tree" -p HEAD -m "local snapshot $(date -u +%Y-%m-%dT%H:%M:%SZ)")"
+# Parentless on purpose: a shallow clone (CI checkout) cannot push history it does not have
+# ("shallow update not allowed"), and Argo CD only needs the tree.
+commit="$(git -C "$ROOT" commit-tree "$tree" \
+  -m "local snapshot of $(git -C "$ROOT" rev-parse --short=12 HEAD) + working tree, $(date -u +%Y-%m-%dT%H:%M:%SZ)")"
 
 git -C "$ROOT" push --force --quiet "http://cms:${pw}@127.0.0.1:3030/cms/cms_demo.git" "$commit:refs/heads/local"
 log "local mirror: branch local = ${commit:0:12} (working tree snapshot)"
