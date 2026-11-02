@@ -15,7 +15,7 @@ Runtime dependencies as they exist in the code today (verified 2026-10-30):
 | Canvas data | SQLite only (EF Core 8), committed SQLite migrations, seed at startup | `canvas-backend/src/Whiteboard.Infrastructure/*` | 1 replica; PostgreSQL needs provider + new migration set |
 | Realtime | SignalR `/hubs/board`, presence in an in-memory singleton, no backplane | `canvas-backend/src/Whiteboard.Api/Program.cs:93-99`, `BoardPresenceStore.cs` | 1 replica until a backplane exists |
 | Messaging | single-node `bitnamilegacy/kafka:3.9`, no volume, topic auto-create; clients set only `BootstrapServers` (no TLS/SASL options) | `KafkaMediaEventProducer.cs:26-30`, `MediaUploadedConsumer.cs:45-50` | unmaintained image; MSK reachable only over plaintext without a code change |
-| Telemetry logs | Coralogix agent exports container logs to Kafka topic `otel-logs`, `otel-gateway` consumes (ADR-016) | `coralogix/values.yaml:174-180`, `k8s/otel-gateway-config.yaml` | Kafka is also an observability dependency |
+| Telemetry logs | Docker Desktop path: agent → Kafka topic `otel-logs` → `otel-gateway` (ADR-016). EKS path: agent → Coralogix directly (Q7, decided 2026-11-02) | `coralogix/values.yaml:174-180`, `k8s/otel-gateway-config.yaml`; `deploy/platform/coralogix-otel/base/values.yaml` | On EKS, Kafka carries application events only |
 | Search | optional Elasticsearch over raw `HttpClient`, index-only, no auth; disabled in k8s | `DemoCms.Api/ElasticExtensions.cs`, `ElasticService.cs` | can stay off |
 | Captioning | OpenAI-compatible chat endpoint; manifests point at `http://llama:11434/v1`, which does not exist | `DemoCms.MediaWorker/Program.cs:105-114`, `k8s/media-worker-deployment.yaml:39-46` | needs a decision (open question Q5) |
 

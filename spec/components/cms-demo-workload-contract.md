@@ -80,7 +80,7 @@ All images are built for `linux/arm64` (Graviton nodes, Apple Silicon host) and 
 
 ### kafka-topics (new Job)
 
-- Image `apache/kafka` (pinned, multi-arch), `kafka-topics.sh --create --if-not-exists` for `media.uploaded` and `otel-logs`, 3 partitions, replication factor from `KAFKA_REPLICATION_FACTOR`, bootstrap from `KAFKA_BOOTSTRAP_SERVERS`.
+- Image `apache/kafka` (pinned, multi-arch), `kafka-topics.sh --create --if-not-exists` for `media.uploaded`, 3 partitions, replication factor from `KAFKA_REPLICATION_FACTOR`, bootstrap from `KAFKA_BOOTSTRAP_SERVERS`.
 - Argo CD Sync hook, wave -1, `BeforeHookCreation` delete policy; works against floci Redpanda and MSK alike.
 
 ## Cross-cutting manifest standards

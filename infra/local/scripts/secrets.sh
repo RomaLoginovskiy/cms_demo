@@ -23,4 +23,12 @@ json() { python3 -I -c 'import json,sys; print(json.dumps({sys.argv[1]: sys.argv
 [ -n "${CORALOGIX_PRIVATE_KEY:-}" ] && put coralogix-ingest "$(json PRIVATE_KEY "$CORALOGIX_PRIVATE_KEY")"
 [ -n "${CORALOGIX_RUM_PUBLIC_KEY:-}" ] && put coralogix-rum "$(json RUM_PUBLIC_KEY "$CORALOGIX_RUM_PUBLIC_KEY")"
 [ -n "${LLM_API_KEY:-}" ] && put llm "$(json API_KEY "$LLM_API_KEY")"
+# ExternalSecrets refresh hourly; ask for an immediate refresh when the cluster is already up.
+# Reloader then restarts the workloads that read the changed Secrets.
+if [ -f "$KUBECONFIG_LOCAL" ]; then
+  for es in $(kubectl_local get externalsecrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{" "}{end}' 2>/dev/null); do
+    kubectl_local -n "${es%/*}" annotate externalsecret "${es#*/}" "force-sync=$(date +%s)" --overwrite >/dev/null
+  done
+  log "ExternalSecrets asked to refresh now"
+fi
 exit 0

@@ -28,4 +28,4 @@ patches:
     patch: |-
       - op: add
         path: /spec/hostnames
-        value: ["cms.REPLACE_WITH_DOMAIN"]
+        value: ["cms.replace-with-domain.invalid"]

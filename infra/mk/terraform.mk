@@ -18,8 +18,8 @@ tf-fmt: ## Check Terraform formatting
 tf-validate: ## Validate every stack without a backend
 	@set -e; for s in $(TF_STACKS); do \
 	  echo "validate $$s"; \
-	  TF_DATA_DIR=infra/terraform/stacks/$$s/.terraform-validate terraform -chdir=infra/terraform/stacks/$$s init -backend=false -input=false >/dev/null; \
-	  TF_DATA_DIR=infra/terraform/stacks/$$s/.terraform-validate terraform -chdir=infra/terraform/stacks/$$s validate; \
+	  TF_DATA_DIR=$(CURDIR)/infra/terraform/stacks/$$s/.terraform-validate terraform -chdir=infra/terraform/stacks/$$s init -backend=false -input=false >/dev/null; \
+	  TF_DATA_DIR=$(CURDIR)/infra/terraform/stacks/$$s/.terraform-validate terraform -chdir=infra/terraform/stacks/$$s validate; \
 	done
 
 deploy-render: ## Render the Kustomize overlays (helmCharts overlays are rendered in CI)

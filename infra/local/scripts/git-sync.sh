@@ -15,14 +15,15 @@ done
 curl -fsS "$host_url/api/healthz" >/dev/null 2>&1 || die "local Git mirror did not start (docker logs $container)"
 
 if [ ! -f "$pw_file" ]; then
-  pw="$(python3 -I -c 'import secrets; print(secrets.token_urlsafe(24))')"
-  docker exec -u git "$container" gitea admin user create --admin --username cms --password "$pw" \
-    --email cms@local.test --must-change-password=false >/dev/null 2>&1 || \
-  docker exec -u git "$container" gitea admin user change-password --username cms --password "$pw" \
-    --must-change-password=false >/dev/null
-  (umask 077; printf '%s' "$pw" > "$pw_file")
+  (umask 077; python3 -I -c 'import secrets; print(secrets.token_urlsafe(24), end="")' > "$pw_file")
 fi
 pw="$(cat "$pw_file")"
+# The mirror's volumes and the password file can get out of step (a fresh volume after
+# `make local-nuke`, or a deleted file), so the user is ensured on every run.
+docker exec -u git "$container" gitea admin user create --admin --username cms --password "$pw" \
+  --email cms@local.test --must-change-password=false >/dev/null 2>&1 || \
+docker exec -u git "$container" gitea admin user change-password --username cms --password "$pw" \
+  --must-change-password=false >/dev/null
 
 index="$(mktemp "${TMPDIR:-/tmp}/cms-index.XXXXXX")"
 trap 'rm -f "$index"' EXIT

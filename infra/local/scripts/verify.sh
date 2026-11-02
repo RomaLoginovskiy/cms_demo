@@ -68,15 +68,25 @@ if [ -n "$role_arn" ] && [ -n "$token" ]; then
     --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text 2>/dev/null || true)"
   if [ -n "$creds" ]; then
     pass "F3 IRSA: eso-app token assumes $role_arn"
-    if [ "${FLOCI_IAM_ENFORCEMENT:-false}" = "true" ]; then
+    # Least privilege needs floci's IAM enforcement (gap G6); read the setting from the running container.
+    enforced="$(docker inspect floci --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | \
+      sed -n 's/^FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED=//p')"
+    if [ "$enforced" = "true" ]; then
       set -- $creds
-      if AWS_ACCESS_KEY_ID="$1" AWS_SECRET_ACCESS_KEY="$2" AWS_SESSION_TOKEN="$3" AWS_PROFILE= \
-         aws secretsmanager get-secret-value --endpoint-url "$FLOCI_URL" \
-         --secret-id "$PROJECT/local/coralogix-ingest" >/dev/null 2>&1; then
-        fail "F3 eso-app could read the Coralogix ingest key"
-      else
-        pass "F3 eso-app denied the Coralogix ingest key"
-      fi
+      # Unset, not empty: an empty AWS_PROFILE makes the CLI look for a profile named "".
+      as_app() { env -u AWS_PROFILE AWS_ACCESS_KEY_ID="$1" AWS_SECRET_ACCESS_KEY="$2" AWS_SESSION_TOKEN="$3" \
+        aws secretsmanager get-secret-value --endpoint-url "$FLOCI_URL" --secret-id "$4" --query Name --output text 2>&1; }
+      out="$(as_app "$@" "$PROJECT/local/coralogix-rum" || true)"
+      [ "$out" = "$PROJECT/local/coralogix-rum" ] && pass "F3 eso-app reads its own secret" || fail "F3 eso-app cannot read its own secret: $out"
+      for denied in "$PROJECT/local/coralogix-ingest" "$PROJECT/dev/coralogix-rum"; do
+        out="$(as_app "$@" "$denied" || true)"
+        case "$out" in
+          *AccessDenied*) pass "F3 eso-app denied $denied" ;;
+          *) fail "F3 eso-app not denied $denied: $(echo "$out" | head -c 160)" ;;
+        esac
+      done
+    else
+      log "SKIP F3 least-privilege checks: floci IAM enforcement is off (FLOCI_IAM_ENFORCEMENT=true make local-up)"
     fi
   else
     fail "F3 IRSA: AssumeRoleWithWebIdentity failed for eso-app"
@@ -92,10 +102,28 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 [ "$(code "$base/")" = "200" ] && pass "F4 /" || fail "F4 /"
 [ "$(code -X POST "$base/hubs/board/negotiate?negotiateVersion=1")" = "200" ] && pass "F4 SignalR negotiate" || fail "F4 SignalR negotiate"
 ws="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
-  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "$base/hubs/board" || true)"
+  -H 'Sec-WebSocket-Version: 13' -H "Sec-WebSocket-Key: $(openssl rand -base64 16)" "$base/hubs/board" || true)"
 case "$ws" in 101|400) pass "F4 WebSocket upgrade reaches canvas-backend ($ws)" ;; *) fail "F4 WebSocket upgrade ($ws)" ;; esac
 traces="$(code -X POST -H 'Content-Type: application/json' -d '{}' "$base/v1/traces")"
 [ "$traces" != "404" ] && [ "$traces" != "000" ] && pass "F4 /v1/traces reaches the collector ($traces)" || fail "F4 /v1/traces ($traces)"
+# Upload size: the API caps files at 5 MiB (MediaController, 400 above it); the edge must pass bodies up
+# to that size untouched. The API checks only the declared content type, so zero bytes stand in for a PNG.
+blob="$(mktemp "${TMPDIR:-/tmp}/verify-blob.XXXXXX")"
+head -c $((5 * 1024 * 1024 - 64 * 1024)) /dev/zero > "$blob"
+resp="$(curl -s -w '\n%{http_code}' -F "files=@$blob;type=image/png;filename=verify-limit.png" \
+  -F title=verify-limit -F tags=verify "$base/api/media" || true)"
+if [ "${resp##*$'\n'}" = "201" ]; then
+  pass "F4 upload just under 5 MiB accepted"
+  big_id="$(python3 -I -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("id") or d.get("Id") or "")' \
+    "${resp%$'\n'*}" 2>/dev/null || true)"
+  [ -z "$big_id" ] || curl -s -o /dev/null -X DELETE "$base/api/media/$big_id" || true
+else
+  fail "F4 upload just under 5 MiB (${resp##*$'\n'})"
+fi
+head -c $((6 * 1024 * 1024)) /dev/zero > "$blob"
+over="$(code -F "files=@$blob;type=image/png;filename=verify-limit.png" "$base/api/media")"
+[ "$over" = "400" ] && pass "F4 upload over 5 MiB rejected by the API (400)" || fail "F4 upload over 5 MiB ($over)"
+rm -f "$blob"
 
 # F5: upload -> media.uploaded -> media-worker consumes it. The worker handles one message at a time
 # and, with the placeholder captioning endpoint (Q5), spends seconds per message in client retries,

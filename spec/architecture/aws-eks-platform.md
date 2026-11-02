@@ -31,8 +31,7 @@ Non-goals (this iteration): multi-region, multi-cluster per environment, service
  │  │ edge:          Envoy Gateway proxies (Gateway "cms-edge")                          │  │
  │  │ cms-demo:      canvas-frontend  cms-frontend  canvas-backend  cms-backend          │  │
  │  │                media-worker     canvas-load   kafka-topics Job                      │  │
- │  │ observability: Coralogix agent DaemonSet (hostPort 4318), cluster collector,       │  │
- │  │                otel-gateway                                                         │──┼─▶ Coralogix
+ │  │ observability: Coralogix agent DaemonSet (hostPort 4318), cluster collector        │──┼─▶ Coralogix
  │  │ platform:      argocd, external-secrets, envoy-gateway-system, aws-lb-controller,  │  │
  │  │                metrics-server                                                       │  │
  │  └──────┬───────────────────────┬───────────────────────────┬────────────────────────┘  │
@@ -86,7 +85,7 @@ The `local` environment has the same shape inside Docker; see [floci-local-envir
 | `external-secrets` | ESO | `restricted` |
 | `envoy-gateway-system` | Envoy Gateway controller | `baseline` |
 | `edge` | `Gateway cms-edge`, Envoy proxy pods | `baseline` |
-| `observability` | Coralogix otel-integration, `otel-gateway`, `otel-agent` Service, `/v1/traces` route | `privileged` (hostPath, eBPF profiler) |
+| `observability` | Coralogix otel-integration, `otel-agent` Service, `/v1/traces` route | `privileged` (hostPath, eBPF profiler) |
 | `cms-demo` | application (namespace name kept: the load generator hard-codes it) | `baseline`, `warn: restricted` |
 | `kube-system` | EKS add-ons, AWS LBC, metrics-server | — |
 
@@ -111,7 +110,7 @@ Versions are pinned exactly in Git; upgrades are pull requests, tested on `local
 
 1. Browser → Route 53 (alias record maintained by external-dns) → NLB `:443` (TLS terminated with the ACM certificate) → Envoy proxy pod (IP target, proxy protocol v2 for client IP). `:80` lands on a redirect-only Gateway listener.
 2. Envoy matches `HTTPRoute`s (ADR-018): `/api/boards`, `/hubs` → `canvas-backend`; `/api/media`, `/api` → `cms-backend`; `/v1/traces` → `otel-agent` (observability namespace); `/cms` → `cms-frontend`; `/` → `canvas-frontend`. The load generator's admin UI is not routed (port-forward only).
-3. Backends emit OTLP to `http://$(NODE):4318` (agent hostPort); the agent forwards to Coralogix; container logs go agent → Kafka `otel-logs` → `otel-gateway` → Coralogix (ADR-016).
+3. Backends emit OTLP to `http://$(NODE):4318` (agent hostPort); the agent forwards to Coralogix. Container logs also go straight from the agent to Coralogix, the chart's default path (Q7, decided 2026-11-02); there is no Kafka hop and no `otel-gateway`.
 4. `cms-backend` publishes `media.uploaded` to MSK; `media-worker` consumes, fetches the file from `http://cms-backend:8080`, calls the captioning endpoint, PUTs the description back.
 
 ## 8. Identity and access
@@ -144,7 +143,7 @@ Rules:
 - The Docker Desktop post-renderer (`mountPropagation: HostToContainer` → `None`) is applied **only** in the `local` overlay as Kustomize patches (spike S6); EKS nodes support `HostToContainer`.
 - Agent hostPort 4318 must be present in the rendered DaemonSet (ADR-016 follow-up); VPC CNI supports hostPort through its portmap plugin.
 - With IMDS hop limit 1, the `ec2`/`eks` resource detectors cannot reach IMDS from pod network namespaces: keep `resourceDetection` limited to Kubernetes attributes, or accept hostNetwork for the agent. Decided in spike S6.
-- `otel-gateway` and the agent's `kafka/logs` exporter read the Kafka bootstrap list from an ESO-managed Secret, not from `kafka:9092`. The collectors' `brokers` field is a list, so the ESO template renders the SSM comma-separated value as a YAML flow list (`[b-1:9092,b-2:9092]`) and the config uses `brokers: ${env:KAFKA_BROKERS}`; the .NET clients keep the comma-separated form (verified in spike S6).
+- Telemetry does not depend on Kafka: logs, metrics, traces and profiles leave the node agent for Coralogix directly, so `observability` reads only the Coralogix ingest key (no SSM parameters). Kafka carries application events only.
 - eBPF profiling uses the chart's `opentelemetry-ebpf-profiler` (otelcol-ebpf-profiler distribution, same version as the collectors) feeding the agent's `profilesCollection`. The legacy `coralogix-ebpf-profiler` still bundled in chart 0.0.371 speaks an older OTLP profiles protocol than its collectors (`proto: wrong wireType = 2 for field LinkIndex`). The profiler cannot run on floci (G17).
 - EKS control-plane logs stay in CloudWatch (optional later: forward to Coralogix via Firehose).
 - `prod` option: Coralogix AWS PrivateLink in `eu-west-1` to keep telemetry off the internet.

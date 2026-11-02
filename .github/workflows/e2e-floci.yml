@@ -35,6 +35,8 @@ jobs:
         run: make local-all PROFILE=ci
       - name: Fitness functions F1-F5
         run: make local-verify
+      - name: Terraform module tests
+        run: make tf-test
       - name: Diagnostics
         if: failure()
         run: |

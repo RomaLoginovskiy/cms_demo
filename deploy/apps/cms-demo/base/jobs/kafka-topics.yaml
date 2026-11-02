@@ -29,7 +29,7 @@ spec:
           command: ["/bin/bash", "-ec"]
           args:
             - |
-              for topic in media.uploaded otel-logs; do
+              for topic in media.uploaded; do
                 /opt/kafka/bin/kafka-topics.sh \
                   --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" \
                   --create --if-not-exists \

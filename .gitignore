@@ -259,3 +259,5 @@ infra/local/.secrets.env
 infra/local/.last-image-tag
 infra/local/.git-mirror-password
 deploy/platform/coralogix-otel/overlays/*/charts/
+# Terraform module tests (make tf-test) initialise modules in place; modules do not pin providers.
+infra/terraform/modules/*/.terraform.lock.hcl

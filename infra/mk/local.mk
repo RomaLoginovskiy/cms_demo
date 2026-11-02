@@ -11,7 +11,7 @@ endif
 
 .PHONY: local-up local-identity local-state local-apply-global local-images local-apply \
         local-secrets local-gitops local-kubeconfig local-edge local-all local-verify \
-        local-sync local-retarget local-down local-nuke predestroy
+        local-sync local-retarget local-down local-nuke predestroy tf-test
 
 local-up: ## Start floci and wait until it answers
 	$(COMPOSE) up -d floci
@@ -48,6 +48,9 @@ local-all: local-up local-identity local-state local-apply-global local-images l
 
 local-verify: ## Run fitness functions F1-F5
 	$(LOCAL_SCRIPTS)/verify.sh
+
+tf-test: ## Terraform module tests against floci (MODULES="ecr msk" for a subset)
+	$(LOCAL_SCRIPTS)/tf-test.sh $(MODULES)
 
 local-sync: ## Push a snapshot of the working tree to the local Git mirror; Argo CD refreshes
 	$(LOCAL_SCRIPTS)/git-sync.sh

@@ -180,7 +180,7 @@ Coordinates are published under one prefix per environment. These names are the 
 
 | Parameter | Producer | Consumers | `dev` example | `local` example |
 |---|---|---|---|---|
-| `/cms-demo/<env>/kafka/bootstrap_brokers` | `msk` | cms-backend, media-worker, topics Job, Coralogix agent, otel-gateway | `b-1.cmsdev….kafka.eu-west-1.amazonaws.com:9092,b-2…:9092` | address returned by floci `GetBootstrapBrokers` |
+| `/cms-demo/<env>/kafka/bootstrap_brokers` | `msk` | cms-backend, media-worker, topics Job | `b-1.cmsdev….kafka.eu-west-1.amazonaws.com:9092,b-2…:9092` | address returned by floci `GetBootstrapBrokers` |
 | `/cms-demo/<env>/kafka/replication_factor` | `app-config` | topics Job | `2` | `1` |
 | `/cms-demo/<env>/app/public_origin` | `app-config` | `Cors__Origin` of both APIs | `https://cms-dev.<domain>` | `http://localhost:8080` |
 | `/cms-demo/<env>/llm/base_url`, `/llm/model` | `app-config` (variables, Q5) | media-worker | placeholder `http://llm.invalid/v1`, `none` until Q5 | same placeholders |
@@ -224,7 +224,7 @@ Created by `gitops-bootstrap` in namespace `argocd`, `server: https://kubernetes
 ## Quality gates (CI)
 
 1. `terraform fmt -check -recursive`, `terraform validate` per root, `tflint` (AWS ruleset), `trivy config infra/terraform`.
-2. `terraform test` for `network`, `ecr`, `msk`, `app-config` with `command = apply` **against floci** (real create/destroy without AWS); `eks` is exercised by the floci e2e job.
+2. `terraform test` against floci (`make tf-test`, also in the floci e2e job): `ecr`, `app-config`, `network`, `msk` (with a real Redpanda broker), `github-oidc`, `budget` and `edge-dns` run `command = apply` (real create/destroy without AWS); `eks` runs `command = plan` only, because an apply would start a second k3s cluster and floci's add-on catalog cannot plan AWS mode (G15). `gitops-bootstrap` needs a live cluster and is covered by the `gitops` stack in F1/F2. Every test pins the provider to floci's account (`allowed_account_ids = ["000000000000"]`), so a shell pointed at AWS fails before creating anything; the endpoint comes from `AWS_ENDPOINT_URL`.
 3. Idempotency: a second `plan` after `apply` is empty, on floci in CI and on `dev` after each apply.
 4. Plan on `dev` for every PR touching `infra/` (plan role), posted as a PR comment.
 

@@ -27,7 +27,7 @@ deploy/
     external-dns/                 # values (AWS only)
     metrics-server/               # values (AWS only; k3s bundles its own)
     storage/                      # gp3 default StorageClass (AWS only)
-    coralogix-otel/               # Kustomize helmCharts(otel-integration) + otel-gateway + otel-agent Service
+    coralogix-otel/               # Kustomize helmCharts(otel-integration) + otel-agent Service + /v1/traces route
       base/                       #   + ExternalSecrets + HTTPRoute /v1/traces
       overlays/{local,dev,prod}/  #   local: mountPropagation patches (ex post-renderer.sh)
   apps/
@@ -167,8 +167,7 @@ Two `ClusterSecretStore`s, each with its own service account and IRSA role (ADR-
 
 | ExternalSecret | Namespace | Store | Resulting Secret keys | Consumed as |
 |---|---|---|---|---|
-| `coralogix-keys` | `observability` | `aws-observability` | `PRIVATE_KEY` | Coralogix chart, otel-gateway (unchanged key name) |
-| `kafka-bootstrap` | `observability` | `aws-observability` | `KAFKA_BROKERS` (templated as a YAML flow list) | agent `kafka/logs` exporter, otel-gateway receiver |
+| `coralogix-keys` | `observability` | `aws-observability` | `PRIVATE_KEY` | Coralogix chart (unchanged key name) |
 | `rum-keys` | `cms-demo` | `aws-app` | `CORALOGIX_RUM_PUBLIC_KEY` | both frontends |
 | `app-endpoints` | `cms-demo` | `aws-app` | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR`, `PUBLIC_ORIGIN`, `LLM_BASE_URL`, `LLM_MODEL` | backends, worker, topics Job |
 | `llm-api-key` | `cms-demo` | `aws-app` | `OPENAI_API_KEY` | media-worker `OpenAI__ApiKey` |
@@ -204,7 +203,7 @@ Two `ClusterSecretStore`s, each with its own service account and IRSA role (ADR-
 | `k8s/ingress.yaml` | `apps/cms-demo/base/routes/` (+ `/v1/traces` route in `platform/coralogix-otel`) | HTTPRoutes per ADR-018 |
 | `k8s/network-policy.yaml` | `apps/cms-demo/base/network-policies/` | allow from namespace `edge` (where the Envoy proxies run) instead of `ingress-nginx` |
 | `k8s/kafka-deployment.yaml` | removed | MSK / floci MSK + `kafka-topics` Job (ADR-020) |
-| `k8s/otel-agent-service.yaml`, `k8s/otel-gateway-*.yaml` | `platform/coralogix-otel/base/` | namespace `observability`; brokers and key from ExternalSecrets |
+| `k8s/otel-agent-service.yaml` | `platform/coralogix-otel/base/` | namespace `observability`; key from an ExternalSecret. `k8s/otel-gateway-*.yaml` is not ported: on EKS the agent ships logs directly (Q7) |
 | `coralogix/values.yaml` | `platform/coralogix-otel/base/values.yaml` + overlay values | `clusterName` per environment; Kafka brokers via env var |
 | `coralogix/post-renderer.sh` | `platform/coralogix-otel/overlays/local/` patches | applied only on floci |
 | `k8s/canvas-load-{configmap,statefulset}.yaml` | `apps/cms-demo/components/loadgen/` | bare image; target URL per overlay |

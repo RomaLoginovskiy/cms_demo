@@ -20,4 +20,4 @@ patches:
     patch: |-
       - op: add
         path: /spec/hostnames
-        value: ["cms-dev.REPLACE_WITH_DOMAIN"]
+        value: ["cms-dev.replace-with-domain.invalid"]

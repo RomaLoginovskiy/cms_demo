@@ -53,9 +53,10 @@ module "app_config" {
       secrets            = ["coralogix-rum", "llm"]
       parameter_prefixes = ["kafka", "app", "llm"]
     }
+    # Telemetry goes from the agent straight to Coralogix, so observability needs no parameters.
     observability = {
       secrets            = ["coralogix-ingest"]
-      parameter_prefixes = ["kafka"]
+      parameter_prefixes = []
     }
   }
 

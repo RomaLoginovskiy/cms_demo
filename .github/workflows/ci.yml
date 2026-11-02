@@ -73,15 +73,21 @@ jobs:
           schemas=(-schema-location default
                    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json')
           render() { kubectl kustomize --enable-helm --load-restrictor LoadRestrictionsNone "$1"; }
+          # Validate every directory, then fail once, so one broken overlay does not hide the rest.
+          failed=()
           for dir in deploy/apps/cms-demo/overlays/* deploy/platform/coralogix-otel/overlays/* \
                      deploy/platform/external-secrets/stores deploy/platform/envoy-gateway/base \
                      deploy/platform/envoy-gateway/proxy/*; do
             echo "::group::$dir"
-            render "$dir" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" -
+            render "$dir" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" - || failed+=("$dir")
             echo "::endgroup::"
           done
           kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" \
-            deploy/argocd deploy/platform/namespaces deploy/platform/storage
+            deploy/argocd deploy/platform/namespaces deploy/platform/storage || failed+=("raw manifests")
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::invalid manifests in %s\n' "${failed[@]}"
+            exit 1
+          fi
 
   secrets-scan:
     runs-on: ubuntu-24.04

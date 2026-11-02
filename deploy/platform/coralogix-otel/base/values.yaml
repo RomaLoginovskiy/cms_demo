@@ -6,6 +6,9 @@ global:
 
 opentelemetry-cluster-collector:
   replicaCount: 1
+  # Env vars from Secrets are read only at start, so Reloader restarts the pods when the key changes.
+  annotations:
+    secret.reloader.stakater.com/reload: coralogix-keys
   presets:
     reduceResourceAttributes:
       enabled: true
@@ -38,19 +41,11 @@ opentelemetry-cluster-collector:
 
 opentelemetry-agent:
   hostNetwork: false
-  # extraEnvs replaces the chart default list, so the private key entry is repeated here.
-  extraEnvs:
-    - name: CORALOGIX_PRIVATE_KEY
-      valueFrom:
-        secretKeyRef:
-          name: coralogix-keys
-          key: PRIVATE_KEY
-    # YAML flow list rendered by the kafka-bootstrap ExternalSecret, e.g. [b-1:9092,b-2:9092].
-    - name: KAFKA_BROKERS
-      valueFrom:
-        secretKeyRef:
-          name: kafka-bootstrap
-          key: KAFKA_BROKERS
+  # Env vars from Secrets are read only at start, so Reloader restarts the pods when the key changes.
+  annotations:
+    secret.reloader.stakater.com/reload: coralogix-keys
+  # Container logs, metrics, traces and profiles all go straight from the agent to Coralogix
+  # (the chart's default exporters); there is no Kafka hop for logs (Q7, decided 2026-11-02).
   presets:
     profilesCollection:
       enabled: true
@@ -94,13 +89,6 @@ opentelemetry-agent:
           explicit:
             buckets: [50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s]
         metrics_expiration: 5m
-    exporters:
-      # Container logs go agent -> Kafka (MSK / floci Redpanda) -> otel-gateway -> Coralogix (ADR-016, Q7).
-      kafka/logs:
-        brokers: ${env:KAFKA_BROKERS}
-        logs:
-          topic: otel-logs
-          encoding: otlp_json
     processors:
       resource/remove-fields:
         attributes:
@@ -108,10 +96,6 @@ opentelemetry-agent:
             key: container.image.name
           - action: delete
             key: container_image_name
-    service:
-      pipelines:
-        logs:
-          exporters: [kafka/logs]
 
 # Chart 0.0.371 still bundles the legacy coralogix-ebpf-profiler (image 0.0.15), whose OTLP profiles
 # proto predates the 0.164 collectors ("proto: wrong wireType = 2 for field LinkIndex"). The chart's

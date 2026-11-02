@@ -63,17 +63,24 @@ data "aws_iam_policy_document" "eso" {
   for_each = var.reader_scopes
 
   statement {
-    sid       = "ReadSecrets"
-    effect    = "Allow"
-    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
-    resources = [for s in each.value.secrets : "${local.secret_arn_pattern}/${s}-*"]
+    sid     = "ReadSecrets"
+    effect  = "Allow"
+    actions = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+    # AWS matches the full ARN (name plus a random 6-character suffix, hence "-*"). floci's IAM
+    # enforcement checks a by-name request against the ARN without the suffix (gap G25); that ARN
+    # never names a real AWS secret, so listing it widens nothing on AWS.
+    resources = flatten([for s in each.value.secrets : ["${local.secret_arn_pattern}/${s}-*", "${local.secret_arn_pattern}/${s}"]])
   }
 
-  statement {
-    sid       = "ReadParameters"
-    effect    = "Allow"
-    actions   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
-    resources = flatten([for p in each.value.parameter_prefixes : ["${local.parameter_arn_pattern}/${p}", "${local.parameter_arn_pattern}/${p}/*"]])
+  # Only for readers that need parameters; IAM rejects a statement without resources.
+  dynamic "statement" {
+    for_each = length(each.value.parameter_prefixes) > 0 ? [each.value.parameter_prefixes] : []
+    content {
+      sid       = "ReadParameters"
+      effect    = "Allow"
+      actions   = ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"]
+      resources = flatten([for p in statement.value : ["${local.parameter_arn_pattern}/${p}", "${local.parameter_arn_pattern}/${p}/*"]])
+    }
   }
 
   statement {

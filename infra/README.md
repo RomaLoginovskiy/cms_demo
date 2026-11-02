@@ -21,6 +21,7 @@ Prerequisites: Docker Desktop with at least 6 CPUs, 12 GiB memory and 100 GB dis
 ```bash
 make local-all        # floci, identity, state, ECR, images, VPC/EKS/MSK, Argo CD, edge proxy
 make local-verify     # fitness functions F1-F5
+make tf-test          # terraform test for every module, against floci
 ```
 
 Then:
@@ -34,13 +35,13 @@ Then:
 - After code changes: `make local-images`, then `make local-gitops` (new snapshot and image tag)
 - Track a pushed GitHub branch instead: `make local-retarget BRANCH=<branch>` (`BRANCH=local` returns to the mirror)
 - Stop / destroy: `make local-down` / `make local-nuke`
-- Cluster API not answering: check `docker ps -a --filter label=io.floci.service=eks`; a stopped k3s container comes back with `docker start <name>` (floci gap G22)
+- Cluster API not answering: check `docker ps -a --filter label=io.floci.service=eks`; a stopped k3s container comes back with `docker start <name>` (floci gap G22; `make local-gitops` does this itself)
 
 Generated, gitignored files: `infra/local/.aws/` (local-admin profile), `infra/local/.kubeconfig`, `infra/local/.last-image-tag`.
 
 ## AWS `dev`
 
-Open decisions Q1, Q3, Q4 and Q5 (delivery plan) are placeholders in `envs/dev/*.tfvars` and `backend.hcl`; Terraform refuses to apply until they are filled in.
+Open decisions Q1, Q3, Q4 and Q5 (delivery plan) are placeholders in `envs/dev/*.tfvars` and `backend.hcl`; Terraform refuses to apply until they are filled in. The public hostname also appears in the `dev` overlays under `deploy/` as `cms-dev.replace-with-domain.invalid` (a valid name in the reserved `.invalid` TLD, so manifest validation passes); replace it with the Q3 hostname.
 
 1. State bucket, once per account (local state, then migrate it into the bucket):
    ```bash

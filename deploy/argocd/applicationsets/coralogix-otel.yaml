@@ -1,5 +1,5 @@
 # Coralogix otel-integration (ADR-016) rendered by Kustomize helmCharts (--enable-helm), plus the
-# app-layer otel-gateway, the otel-agent Service and the browser /v1/traces route.
+# the otel-agent Service and the browser /v1/traces route.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
