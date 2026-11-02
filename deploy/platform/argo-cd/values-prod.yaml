@@ -1,0 +1,11 @@
+# prod (phase 4): HA components and SSO; admin disabled once SSO works.
+redis-ha:
+  enabled: true
+controller:
+  replicas: 1
+server:
+  replicas: 2
+repoServer:
+  replicas: 2
+applicationSet:
+  replicas: 2

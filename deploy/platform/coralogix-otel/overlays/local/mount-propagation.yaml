@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: coralogix-opentelemetry-agent
+  namespace: observability
+spec:
+  template:
+    spec:
+      containers:
+        - name: opentelemetry-agent
+          volumeMounts:
+            - mountPath: /hostfs
+              mountPropagation: None
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coralogix-opentelemetry-collector
+  namespace: observability
+spec:
+  template:
+    spec:
+      containers:
+        - name: opentelemetry-cluster-collector
+          volumeMounts:
+            - mountPath: /hostfs
+              mountPropagation: None
+            - mountPath: /etc/machine-id
+              mountPropagation: None
+            - mountPath: /var/lib/dbus/machine-id
+              mountPropagation: None

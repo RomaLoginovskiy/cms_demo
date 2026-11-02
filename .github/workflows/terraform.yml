@@ -1,0 +1,60 @@
+# Plans dev on pull requests (plan role) and applies on main behind the protected "dev" GitHub
+# environment. The gitops stack is applied by an operator: the cluster API is not open to CI.
+name: terraform
+
+on:
+  pull_request:
+    paths: [infra/terraform/**, .github/workflows/terraform.yml]
+  push:
+    branches: [main]
+    paths: [infra/terraform/**]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  plan-dev:
+    if: github.event_name == 'pull_request' && vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/cms-demo-gha-tf-plan
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Plan global and infra
+        run: |
+          set -euo pipefail
+          for stack in global infra; do
+            echo "::group::$stack"
+            infra/local/scripts/tf.sh dev "$stack" plan -input=false
+            echo "::endgroup::"
+          done
+
+  apply-dev:
+    if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-24.04-arm
+    environment: dev
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/cms-demo-gha-tf-apply
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Apply global and infra
+        run: |
+          set -euo pipefail
+          infra/local/scripts/tf.sh dev global apply -auto-approve -input=false
+          infra/local/scripts/tf.sh dev infra apply -auto-approve -input=false

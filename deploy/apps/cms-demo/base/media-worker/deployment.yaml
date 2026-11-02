@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-worker
+  labels:
+    app: media-worker
+    component: worker
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: media-worker
+  template:
+    metadata:
+      labels:
+        app: media-worker
+        component: worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: media-worker
+          image: media-worker
+          env:
+            - name: Kafka__BootstrapServers
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: Kafka__Topic
+              value: "media.uploaded"
+            - name: Kafka__GroupId
+              value: "demo-cms-media-worker"
+            - name: Kafka__AutoOffsetReset
+              value: "Earliest"
+            - name: Kafka__EnableAutoCommit
+              value: "false"
+            # Q5: placeholders (http://llm.invalid/v1, model none) keep the worker consuming with captions off.
+            - name: OpenAI__BaseUrl
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: LLM_BASE_URL
+            - name: OpenAI__Model
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: LLM_MODEL
+            - name: OpenAI__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: llm-api-key
+                  key: OPENAI_API_KEY
+            - name: OpenAI__Prompt
+              value: "Describe the image in one sentence."
+            - name: Api__BaseUrl
+              value: "http://cms-backend:8080"
+            - name: OpenTelemetry__ServiceVersion
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: APP_VERSION
+            - name: NODE
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OpenTelemetry__OtlpEndpoint
+              value: "http://$(NODE):4318"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

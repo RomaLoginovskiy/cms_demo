@@ -1,0 +1,58 @@
+# The application. Registry host comes from the cluster Secret; image tags come from the Git overlay
+# (dev/prod) or, locally only, from the image_tag_override annotation set by `make local-images`.
+# Which components (load generator, RUM scenarios) run is decided by each overlay in Git.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cms-demo
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: 'cms-demo-{{.metadata.labels.environment}}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: cms-demo
+      source:
+        repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
+        targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
+        path: 'deploy/apps/cms-demo/overlays/{{.metadata.labels.environment}}'
+        kustomize:
+          images:
+            - 'cms-backend={{index .metadata.annotations "ecr_registry"}}/cms-demo/cms-backend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'media-worker={{index .metadata.annotations "ecr_registry"}}/cms-demo/media-worker{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'cms-frontend={{index .metadata.annotations "ecr_registry"}}/cms-demo/cms-frontend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'canvas-backend={{index .metadata.annotations "ecr_registry"}}/cms-demo/canvas-backend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'canvas-frontend={{index .metadata.annotations "ecr_registry"}}/cms-demo/canvas-frontend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'canvas-load={{index .metadata.annotations "ecr_registry"}}/cms-demo/canvas-load{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+      destination:
+        server: '{{.server}}'
+        namespace: cms-demo
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jqPathExpressions:
+            - '.spec.template.metadata.annotations."reloader.stakater.com/last-reloaded-from"'
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - '.spec.template.metadata.annotations."reloader.stakater.com/last-reloaded-from"'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true
+          - RespectIgnoreDifferences=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff: { duration: 10s, factor: 2, maxDuration: 5m }

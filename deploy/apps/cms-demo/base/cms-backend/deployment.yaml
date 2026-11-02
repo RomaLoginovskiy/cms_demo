@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-backend
+  labels:
+    app: cms-backend
+    component: api
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  # SQLite and uploads live on ReadWriteOnce volumes: a surge pod on another node could not attach them.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cms-backend
+  template:
+    metadata:
+      labels:
+        app: cms-backend
+        component: api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cms-backend
+          image: cms-backend
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ConnectionStrings__DefaultConnection
+              value: "Data Source=/app/data/media.db"
+            - name: Storage__Path
+              value: "/app/uploads"
+            - name: MediaEvents__Enabled
+              value: "true"
+            - name: MediaEvents__Topic
+              value: "media.uploaded"
+            # The default (http://demo-cms-api) does not resolve; the worker fetches files from here.
+            - name: MediaEvents__PublicBaseUrl
+              value: "http://cms-backend:8080"
+            - name: MediaEvents__BootstrapServers
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: Cors__Origin
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: PUBLIC_ORIGIN
+            - name: OpenTelemetry__EnablePrometheusExporter
+              value: "true"
+            - name: OpenTelemetry__ServiceVersion
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: APP_VERSION
+            - name: NODE
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OpenTelemetry__OtlpEndpoint
+              value: "http://$(NODE):4318"
+          volumeMounts:
+            - name: cms-backend-data
+              mountPath: /app/data
+            - name: cms-backend-uploads
+              mountPath: /app/uploads
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: cms-backend-data
+          persistentVolumeClaim:
+            claimName: backend-data-pvc
+        - name: cms-backend-uploads
+          persistentVolumeClaim:
+            claimName: backend-uploads-pvc

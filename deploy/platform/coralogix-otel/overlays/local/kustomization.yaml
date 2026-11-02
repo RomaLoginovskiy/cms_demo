@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: observability
+resources:
+  - ../../base
+helmCharts:
+  - name: otel-integration
+    repo: https://cgx.jfrog.io/artifactory/coralogix-charts-virtual
+    version: 0.0.371
+    releaseName: otel-coralogix-integration
+    namespace: observability
+    valuesFile: ../../base/values.yaml
+    additionalValuesFiles:
+      - values.yaml
+patches:
+  # Replaces coralogix/post-renderer.sh: k3s inside Docker has no shared root mount, so
+  # HostToContainer propagation fails; None still bind-mounts the (readable) host paths.
+  - path: mount-propagation.yaml

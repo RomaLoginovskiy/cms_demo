@@ -1,0 +1,86 @@
+# Routing contract (ADR-018). All routes attach to the "websecure" listener; hostnames are added by
+# the dev/prod overlays. Longest-prefix matching reproduces the old Ingress ordering.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: canvas-backend
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/boards
+      backendRefs:
+        - name: canvas-backend
+          port: 8080
+    # SignalR: long-lived WebSocket streams, no request timeout.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /hubs
+      timeouts:
+        request: "0s"
+      backendRefs:
+        - name: canvas-backend
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cms-backend
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/media
+        - path:
+            type: PathPrefix
+            value: /api
+      backendRefs:
+        - name: cms-backend
+          port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cms-frontend
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /cms
+      backendRefs:
+        - name: cms-frontend
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: canvas-frontend
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: canvas-frontend
+          port: 80

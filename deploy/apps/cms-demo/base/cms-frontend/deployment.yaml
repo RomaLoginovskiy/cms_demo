@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-frontend
+  labels:
+    app: cms-frontend
+    component: web
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cms-frontend
+  template:
+    metadata:
+      labels:
+        app: cms-frontend
+        component: web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cms-frontend
+          image: cms-frontend
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: BACKEND_HOST
+              value: "cms-backend:8080"
+            # Empty (the placeholder) disables RUM; the real key comes from Secrets Manager.
+            - name: CORALOGIX_RUM_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rum-keys
+                  key: CORALOGIX_RUM_PUBLIC_KEY
+            - name: CORALOGIX_RUM_DOMAIN
+              value: "eu1.coralogix.com"
+            - name: CORALOGIX_APPLICATION
+              value: "cms-demo"
+            - name: CORALOGIX_SUBSYSTEM
+              value: "cms-frontend"
+            - name: CORALOGIX_ORGANIZATION_NAME
+              value: "Acme Digital Works"
+            - name: CORALOGIX_ENVIRONMENT
+              value: "set-per-overlay"
+            - name: CORALOGIX_APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: APP_VERSION
+            - name: CORALOGIX_RUM_SESSION_SAMPLE_RATE
+              value: "100"
+            - name: CORALOGIX_RUM_SESSION_RECORDING_ENABLED
+              value: "false"
+            - name: CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE
+              value: "100"
+            - name: CORALOGIX_OTLP_TRACES_URL
+              value: "/v1/traces"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 101
+            runAsGroup: 101
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

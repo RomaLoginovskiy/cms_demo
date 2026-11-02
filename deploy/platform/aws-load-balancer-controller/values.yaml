@@ -1,0 +1,12 @@
+# Used only to provision the NLB for the Envoy Service (ADR-018). No ALB Ingress, no Gateway API.
+replicaCount: 2
+createIngressClassResource: false
+defaultTargetType: ip
+controllerConfig:
+  featureGates:
+    NLBGatewayAPI: false
+    ALBGatewayAPI: false
+    GatewayListenerSet: false
+resources:
+  requests: { cpu: 50m, memory: 128Mi }
+  limits: { memory: 512Mi }

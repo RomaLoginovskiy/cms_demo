@@ -1,0 +1,59 @@
+# Runtime changes made in the admin UI are in memory only; Reloader restarts the pod when this changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: canvas-load-config
+data:
+  load.yaml: |
+    run:
+      run_id: loadgen-shared
+      seed: 42
+      duration: null
+      ramp_up: 30s
+      ramp_down: 10s
+      cleanup: true
+      # Always-on synthetic load: start immediately and resume on its own after the target frontend restarts.
+      paused: false
+      auto_resume: true
+    target:
+      # CMS media transactions (upload -> filter -> open -> edit -> save -> delete) for Product Analytics funnels.
+      # Switch back to canvas with the admin UI "Canvas" scenario, or app: canvas + http://canvas-frontend.
+      app: cms
+      # Through the Gateway (same path as browsers, incl. /v1/traces). The dev overlay uses the public hostname.
+      frontend_base_url: http://cms-edge.edge.svc.cluster.local:443/cms
+    users:
+      count: 10
+      max_contexts_per_pod: 10
+      think_time_ms: 1500
+    shard:
+      count: 1
+    browser:
+      headless: true
+      viewport_width: 1280
+      viewport_height: 720
+      action_timeout_ms: 10000
+      navigation_timeout_ms: 30000
+      slow_mo_ms: 0
+    boards:
+      mode: shared
+      name_prefix: loadgen
+      pool_size: 5
+    profiles:
+      mix:
+        cms_uploader: 0.2
+        cms_curator: 0.5
+        cms_browser: 0.3
+      cms:
+        abandon_probability: 0.12
+        max_owned_items: 5
+        marker_tag: loadgen
+        step_think_ms: 1200
+    chaos:
+      enabled: false
+    abort:
+      warmup: 15s
+      error_rate_threshold: 0.05
+      on_abort: continue
+    control:
+      listen_port: 8090
+      metrics_port: 9091

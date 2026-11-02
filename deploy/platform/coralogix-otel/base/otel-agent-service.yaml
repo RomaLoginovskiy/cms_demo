@@ -1,0 +1,23 @@
+# ClusterIP in front of the agent DaemonSet; target of the browser /v1/traces route (ADR-013/016).
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-agent
+  labels:
+    app: otel-agent
+    component: telemetry
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/instance: otel-coralogix-integration
+    app.kubernetes.io/name: opentelemetry-agent
+    component: agent-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP

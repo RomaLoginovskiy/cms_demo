@@ -1,0 +1,113 @@
+# Builds immutable arm64 images on main, pushes them to ECR through GitHub OIDC, then opens an
+# auto-merging promotion PR for overlays/dev. Needs repository variables AWS_ACCOUNT_ID and
+# PROMOTION_APP_ID plus secret PROMOTION_APP_PRIVATE_KEY (a GitHub App: PRs opened with
+# GITHUB_TOKEN would not trigger the required checks).
+name: images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - backend/**
+      - canvas-backend/**
+      - frontend/**
+      - canvas-frontend/**
+      - loadgen/canvas-load/**
+      - .github/workflows/images.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: images-main
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  build:
+    if: vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { service: cms-backend, context: backend, dockerfile: backend/Dockerfile }
+          - { service: media-worker, context: backend, dockerfile: backend/DemoCms.MediaWorker/Dockerfile }
+          - { service: cms-frontend, context: frontend, dockerfile: frontend/Dockerfile }
+          - { service: canvas-backend, context: canvas-backend, dockerfile: canvas-backend/Dockerfile }
+          - { service: canvas-frontend, context: canvas-frontend, dockerfile: canvas-frontend/Dockerfile }
+          - { service: canvas-load, context: loadgen/canvas-load, dockerfile: loadgen/canvas-load/Dockerfile }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/cms-demo-gha-ecr-push
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: meta
+        run: |
+          tag="sha-${GITHUB_SHA::12}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "image=${{ steps.ecr.outputs.registry }}/cms-demo/${{ matrix.service }}:$tag" >> "$GITHUB_OUTPUT"
+          # ECR tags are immutable: a re-run must not push the same tag again.
+          if aws ecr describe-images --repository-name "cms-demo/${{ matrix.service }}" --image-ids "imageTag=$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.meta.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: steps.meta.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  promote-dev:
+    needs: build
+    if: vars.PROMOTION_APP_ID != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.PROMOTION_APP_ID }}
+          private-key: ${{ secrets.PROMOTION_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app.outputs.token }}
+      - name: Update overlays/dev
+        run: |
+          set -euo pipefail
+          tag="sha-${GITHUB_SHA::12}"
+          overlay=deploy/apps/cms-demo/overlays/dev
+          for s in cms-backend media-worker cms-frontend canvas-backend canvas-frontend canvas-load; do
+            yq -i "(.images[] | select(.name == \"$s\")).newTag = \"$tag\"" "$overlay/kustomization.yaml"
+          done
+          yq -i ".data.APP_VERSION = \"$tag\"" "$overlay/patches/build-info.yaml"
+          echo "TAG=$tag" >> "$GITHUB_ENV"
+      - name: Open and auto-merge the promotion PR
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          set -euo pipefail
+          branch="deploy/dev-${TAG}"
+          git config user.name "cms-demo-promotion[bot]"
+          git config user.email "cms-demo-promotion[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -a -m "deploy(dev): ${TAG}"
+          git push origin "$branch"
+          gh pr create --base main --head "$branch" --title "deploy(dev): ${TAG}" \
+            --body "Promotes images ${TAG} to the dev overlay. Argo CD syncs after merge."
+          gh pr merge "$branch" --auto --squash

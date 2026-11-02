@@ -1,0 +1,39 @@
+# Coralogix otel-integration (ADR-016) rendered by Kustomize helmCharts (--enable-helm), plus the
+# app-layer otel-gateway, the otel-agent Service and the browser /v1/traces route.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: coralogix-otel
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: 'coralogix-otel-{{.metadata.labels.environment}}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform
+      source:
+        repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
+        targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
+        path: 'deploy/platform/coralogix-otel/overlays/{{.metadata.labels.environment}}'
+      destination:
+        server: '{{.server}}'
+        namespace: observability
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff: { duration: 10s, factor: 2, maxDuration: 5m }

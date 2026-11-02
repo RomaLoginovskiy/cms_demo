@@ -1,0 +1,57 @@
+# Envoy Gateway (ADR-018): CRDs (experimental channel, EG's tested default), controller in
+# GatewayNamespace deploy mode, and the shared GatewayClass/Gateway/redirect route.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: envoy-gateway
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+  template:
+    metadata:
+      name: 'envoy-gateway-{{.metadata.labels.environment}}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: platform
+      sources:
+        - repoURL: docker.io/envoyproxy
+          chart: gateway-crds-helm
+          targetRevision: v1.9.3
+          helm:
+            releaseName: eg-crds
+            valueFiles:
+              - $values/deploy/platform/envoy-gateway/crds-values.yaml
+        - repoURL: docker.io/envoyproxy
+          chart: gateway-helm
+          targetRevision: v1.9.3
+          helm:
+            releaseName: eg
+            valueFiles:
+              - $values/deploy/platform/envoy-gateway/values.yaml
+        - repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
+          targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
+          ref: values
+        - repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
+          targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
+          path: deploy/platform/envoy-gateway/base
+      destination:
+        server: '{{.server}}'
+        namespace: envoy-gateway-system
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
+        retry:
+          limit: 10
+          backoff: { duration: 10s, factor: 2, maxDuration: 5m }

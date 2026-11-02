@@ -1,0 +1,46 @@
+# Wave 0 with their consumers: both default classes bind on first consumer (WaitForFirstConsumer),
+# so a PVC in an earlier wave would stay Pending and block the sync. Never pruned or deleted by Argo CD.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-data-pvc
+  labels:
+    app: cms-backend
+    component: storage
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-uploads-pvc
+  labels:
+    app: cms-backend
+    component: uploads
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: canvas-backend-data-pvc
+  labels:
+    app: canvas-backend
+    component: storage
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi

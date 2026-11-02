@@ -1,0 +1,94 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: CMS API and media worker
+        run: dotnet test backend/DemoCms.sln --configuration Release
+      - name: Canvas API
+        run: dotnet test canvas-backend/Whiteboard.sln --configuration Release
+
+  node:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [frontend, canvas-frontend, loadgen/canvas-load]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx jest --ci
+
+  terraform:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+      - run: make tf-fmt
+      - run: make tf-validate
+
+  manifests:
+    runs-on: ubuntu-24.04-arm
+    env:
+      KUBECONFORM_VERSION: v0.7.0
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install kubeconform
+        run: |
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-arm64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin kubeconform
+      - name: Render and validate every overlay
+        run: |
+          set -euo pipefail
+          schemas=(-schema-location default
+                   -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json')
+          render() { kubectl kustomize --enable-helm --load-restrictor LoadRestrictionsNone "$1"; }
+          for dir in deploy/apps/cms-demo/overlays/* deploy/platform/coralogix-otel/overlays/* \
+                     deploy/platform/external-secrets/stores deploy/platform/envoy-gateway/base \
+                     deploy/platform/envoy-gateway/proxy/*; do
+            echo "::group::$dir"
+            render "$dir" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" -
+            echo "::endgroup::"
+          done
+          kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" \
+            deploy/argocd deploy/platform/namespaces deploy/platform/storage
+
+  secrets-scan:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

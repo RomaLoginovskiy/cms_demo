@@ -1,0 +1,8 @@
+# floci only: ESO's documented custom-endpoint variables (ADR-019). Absent on AWS.
+extraEnv:
+  - name: AWS_STS_ENDPOINT
+    value: http://floci:4566
+  - name: AWS_SECRETSMANAGER_ENDPOINT
+    value: http://floci:4566
+  - name: AWS_SSM_ENDPOINT
+    value: http://floci:4566

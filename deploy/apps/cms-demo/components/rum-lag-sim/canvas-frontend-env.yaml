@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas-frontend
+spec:
+  template:
+    spec:
+      containers:
+        - name: canvas-frontend
+          env:
+            - name: CORALOGIX_ENVIRONMENT
+              value: "load-test"
+            - name: CANVAS_LAG_SIM_ENABLED
+              value: "true"
+            - name: CANVAS_LAG_SIM_MODE
+              value: "no_optimistic"
+            - name: CANVAS_LAG_SIM_DELAY_MS
+              value: "5500"
+            - name: CANVAS_LAG_SIM_JITTER_MS
+              value: "0"
+            - name: CANVAS_LAG_SIM_ALLOW_PROD
+              value: "false"

@@ -1,0 +1,129 @@
+# Coralogix otel-integration values (from coralogix/values.yaml, ADR-016). Environment specifics
+# (clusterName, local-only switches) live in overlays/<env>/values.yaml.
+global:
+  domain: eu1.coralogix.com
+  clusterName: set-per-environment
+
+opentelemetry-cluster-collector:
+  replicaCount: 1
+  presets:
+    reduceResourceAttributes:
+      enabled: true
+    kubernetesResources:
+      enabled: true
+      periodicCollection:
+        enabled: true
+      dropManagedFields:
+        enabled: true
+    logsCollection:
+      enabled: true
+      storeCheckpoints: false
+    resourceDetection:
+      enabled: true
+    hostMetrics:
+      enabled: true
+      process:
+        enabled: true
+    transactions:
+      enabled: true
+    hostEntityEvents:
+      enabled: true
+    clusterMetrics:
+      enabled: true
+  config:
+    service:
+      pipelines:
+        metrics:
+          receivers: [k8s_cluster, prometheus, prometheus/k8s_apiserver_metrics, otlp]
+
+opentelemetry-agent:
+  hostNetwork: false
+  # extraEnvs replaces the chart default list, so the private key entry is repeated here.
+  extraEnvs:
+    - name: CORALOGIX_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: coralogix-keys
+          key: PRIVATE_KEY
+    # YAML flow list rendered by the kafka-bootstrap ExternalSecret, e.g. [b-1:9092,b-2:9092].
+    - name: KAFKA_BROKERS
+      valueFrom:
+        secretKeyRef:
+          name: kafka-bootstrap
+          key: KAFKA_BROKERS
+  presets:
+    profilesCollection:
+      enabled: true
+    spanMetrics:
+      histogramBuckets: [50ms, 100ms, 200ms]
+      dbMetrics:
+        enabled: true
+    logsCollection:
+      enabled: true
+      reduceLogAttributes:
+        enabled: true
+      storeCheckpoints: false
+    hostMetrics:
+      enabled: true
+      process:
+        enabled: true
+    hostEntityEvents:
+      enabled: true
+    # IMDS is unreachable from pods at hop limit 1; Kubernetes attributes come from k8sattributes.
+    resourceDetection:
+      enabled: false
+    reduceResourceAttributes:
+      enabled: true
+    kubernetesExtraMetrics:
+      enabled: true
+      perNode: true
+      scrapeAll: false
+  command:
+    extraArgs: ["--feature-gates=service.profilesSupport"]
+  config:
+    connectors:
+      spanmetrics/db2:
+        aggregation_cardinality_limit: 100000
+        dimensions:
+          - name: db.namespace
+          - name: db.operation.name
+          - name: db.collection.name
+          - name: db.system
+          - name: service.version
+        histogram:
+          explicit:
+            buckets: [50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s]
+        metrics_expiration: 5m
+    exporters:
+      # Container logs go agent -> Kafka (MSK / floci Redpanda) -> otel-gateway -> Coralogix (ADR-016, Q7).
+      kafka/logs:
+        brokers: ${env:KAFKA_BROKERS}
+        logs:
+          topic: otel-logs
+          encoding: otlp_json
+    processors:
+      resource/remove-fields:
+        attributes:
+          - action: delete
+            key: container.image.name
+          - action: delete
+            key: container_image_name
+    service:
+      pipelines:
+        logs:
+          exporters: [kafka/logs]
+
+# Chart 0.0.371 still bundles the legacy coralogix-ebpf-profiler (image 0.0.15), whose OTLP profiles
+# proto predates the 0.164 collectors ("proto: wrong wireType = 2 for field LinkIndex"). The chart's
+# supported profiler is the otelcol-ebpf-profiler distribution; its chart defaults already export
+# profiles to the node-local agent, whose profilesCollection/profilesK8sAttributes presets forward them.
+coralogix-ebpf-profiler:
+  enabled: false
+
+opentelemetry-ebpf-profiler:
+  enabled: true
+
+opentelemetry-gateway:
+  presets:
+    reduceResourceAttributes:
+      enabled: true

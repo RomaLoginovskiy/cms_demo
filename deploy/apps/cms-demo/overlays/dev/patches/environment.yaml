@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-frontend
+spec:
+  template:
+    spec:
+      containers:
+        - name: cms-frontend
+          env:
+            - name: CORALOGIX_ENVIRONMENT
+              value: "dev"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: canvas-frontend
+spec:
+  template:
+    spec:
+      containers:
+        - name: canvas-frontend
+          env:
+            - name: CORALOGIX_ENVIRONMENT
+              value: "dev"

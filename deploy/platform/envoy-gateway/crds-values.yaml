@@ -1,0 +1,10 @@
+# Gateway API CRDs from Envoy Gateway's CRD chart (bundle v1.6.1). Standard channel: since v1.5 it
+# carries every kind this platform uses (incl. TCPRoute, TLSRoute, BackendTLSPolicy, ListenerSet);
+# experimental only adds x-k8s.io kinds we do not use. It also matches what k3s 1.37 pre-installs,
+# whose safe-upgrades ValidatingAdmissionPolicy rejects experimental CRDs over standard ones.
+crds:
+  gatewayAPI:
+    enabled: true
+    channel: standard
+  envoyGateway:
+    enabled: true

@@ -1,0 +1,90 @@
+# floci local AWS environment (spec/components/floci-local-environment.md).
+# Started by `make local-up`; the k3s (EKS), registry (ECR), Redpanda (MSK) and Postgres (RDS)
+# containers are spawned by floci itself on the cms-local network.
+name: cms-local
+
+networks:
+  cms-local:
+    name: cms-local
+    ipam:
+      config:
+        # Clear of Docker Desktop defaults and of k3s' pod (10.42/16) and service (10.100/16) ranges.
+        - subnet: 172.30.0.0/16
+
+volumes:
+  floci-data:
+    name: cms-local-floci-data
+  git-data:
+    name: cms-local-git-data
+  git-config:
+    name: cms-local-git-config
+
+services:
+  floci:
+    image: floci/floci:2.3.0
+    container_name: floci
+    ports:
+      - "4566:4566"            # AWS APIs + ECR registry data plane
+      - "7001-7010:7001-7010"  # RDS proxy ports (phase 3 migrations from the host)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - floci-data:/app/data
+    networks:
+      cms-local:
+        ipv4_address: 172.30.0.10   # stable address for CoreDNS fallbacks (spike S2)
+    environment:
+      FLOCI_DEFAULT_REGION: eu-west-1
+      FLOCI_HOSTNAME: floci
+      # The stock image defaults to memory; clusters, repositories and databases must survive restarts.
+      FLOCI_STORAGE_MODE: hybrid
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      FLOCI_SERVICES_DOCKER_NETWORK: cms-local
+      # EKS add-ons are metadata only: keep k3s' local-path StorageClass as the default class.
+      FLOCI_SERVICES_EKS_DEFAULT_STORAGE_CLASS: "true"
+      # DescribeCluster returns https://localhost:<port> for host-side kubectl and Terraform.
+      FLOCI_SERVICES_EKS_ENDPOINT_MODE: host
+      FLOCI_SERVICES_EKS_MAX_VCPUS: "${FLOCI_EKS_MAX_VCPUS:-6}"
+      FLOCI_SERVICES_EKS_MAX_MEMORY_MIB: "${FLOCI_EKS_MAX_MEMORY_MIB:-10240}"
+      # containerd image store only treats localhost as plain-HTTP registry: path-style URIs.
+      FLOCI_SERVICES_ECR_URI_STYLE: path
+      # Least-privilege checks (fitness function F3) run with enforcement on.
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: "${FLOCI_IAM_ENFORCEMENT:-false}"
+      FLOCI_SERVICES_UI_ENABLED: "false"
+
+  # localhost:8080 -> Gateway listener "websecure" (port 443, plain HTTP locally) on the k3s node.
+  # EDGE_TARGET is the k3s container, resolved from floci's labels by `make local-edge`.
+  edge:
+    image: alpine/socat:1.8.0.3
+    container_name: cms-local-edge
+    profiles: ["app"]
+    command: ["tcp-listen:8080,fork,reuseaddr", "tcp-connect:${EDGE_TARGET:-unset}:443"]
+    ports:
+      - "8080:8080"
+    networks:
+      - cms-local
+    restart: unless-stopped
+
+  # Local Git mirror: Argo CD on floci reads snapshots of the working tree from here, so unpushed
+  # work can be tested without publishing it (make local-sync). Read access is anonymous.
+  git:
+    image: gitea/gitea:1.27.3-rootless
+    container_name: cms-local-git
+    ports:
+      - "127.0.0.1:3030:3000"
+    volumes:
+      - git-data:/var/lib/gitea
+      - git-config:/etc/gitea
+    networks:
+      cms-local:
+        ipv4_address: 172.30.0.11   # Argo CD uses this address; it does not depend on pod DNS
+    environment:
+      GITEA__security__INSTALL_LOCK: "true"
+      GITEA__server__HTTP_PORT: "3000"
+      GITEA__server__DOMAIN: 172.30.0.11
+      GITEA__server__ROOT_URL: http://172.30.0.11:3000/
+      GITEA__database__DB_TYPE: sqlite3
+      GITEA__service__DISABLE_REGISTRATION: "true"
+      GITEA__repository__ENABLE_PUSH_CREATE_USER: "true"
+      GITEA__repository__DEFAULT_PUSH_CREATE_PRIVATE: "false"
+      GITEA__log__LEVEL: warn
+    restart: unless-stopped

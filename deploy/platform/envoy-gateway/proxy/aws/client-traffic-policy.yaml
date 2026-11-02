@@ -1,0 +1,17 @@
+# The NLB sends PROXY protocol v2. optional: in-cluster clients may call the Gateway Service directly.
+# forwardProtoConfig derives X-Forwarded-Proto from the PROXY destination port (443 -> https).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: cms-edge
+  namespace: edge
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: cms-edge
+  proxyProtocol:
+    optional: true
+    forwardProtoConfig:
+      httpsDestinationPorts: [443]
+      httpDestinationPorts: [80]

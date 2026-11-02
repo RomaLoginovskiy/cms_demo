@@ -1,0 +1,58 @@
+# Topics are explicit (MSK has auto.create.topics.enable=false). Idempotent; works against MSK and
+# floci's Redpanda. Sync hook in wave -1: after the app-endpoints ExternalSecret, before the apps.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: kafka-topics
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kafka-topics
+          image: apache/kafka:3.9.1
+          command: ["/bin/bash", "-ec"]
+          args:
+            - |
+              for topic in media.uploaded otel-logs; do
+                /opt/kafka/bin/kafka-topics.sh \
+                  --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" \
+                  --create --if-not-exists \
+                  --topic "${topic}" \
+                  --partitions 3 \
+                  --replication-factor "${KAFKA_REPLICATION_FACTOR}"
+              done
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server "${KAFKA_BOOTSTRAP_SERVERS}" --list
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: KAFKA_REPLICATION_FACTOR
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: KAFKA_REPLICATION_FACTOR
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { memory: 512Mi }

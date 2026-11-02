@@ -1,0 +1,5 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Scenario S1 (k8s/patches/canvas-frontend-lag-env.json): ~5.5 s interaction lag in the whiteboard.
+patches:
+  - path: canvas-frontend-env.yaml

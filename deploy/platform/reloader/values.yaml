@@ -1,0 +1,8 @@
+reloader:
+  watchGlobally: true
+  # Annotation strategy + Argo CD server-side diff: the restart marker is owned by Reloader, not Git.
+  reloadStrategy: annotations
+  deployment:
+    resources:
+      requests: { cpu: 10m, memory: 64Mi }
+      limits: { memory: 256Mi }

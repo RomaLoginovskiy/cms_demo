@@ -1,0 +1,14 @@
+# Keep idle SignalR streams for up to an hour (was proxy-read/send-timeout 3600 on ingress-nginx).
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: canvas-backend-streams
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: canvas-backend
+  timeout:
+    http:
+      streamIdleTimeout: 3600s
+      connectionIdleTimeout: 3600s
