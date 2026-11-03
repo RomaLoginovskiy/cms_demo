@@ -9,3 +9,6 @@ repoServer:
   replicas: 2
 applicationSet:
   replicas: 2
+notifications:
+  context:
+    environment: prod

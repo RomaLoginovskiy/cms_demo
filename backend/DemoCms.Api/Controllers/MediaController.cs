@@ -1,3 +1,4 @@
+using DemoCms.Api.Queries;
 using DemoCms.Core.DTOs;
 using DemoCms.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -9,11 +10,13 @@ namespace DemoCms.Api.Controllers;
 public class MediaController : ControllerBase
 {
     private readonly IMediaService _mediaService;
+    private readonly IMediaQueryService _mediaQueryService;
     private readonly ILogger<MediaController> _logger;
 
-    public MediaController(IMediaService mediaService, ILogger<MediaController> logger)
+    public MediaController(IMediaService mediaService, IMediaQueryService mediaQueryService, ILogger<MediaController> logger)
     {
         _mediaService = mediaService;
+        _mediaQueryService = mediaQueryService;
         _logger = logger;
     }
 
@@ -25,7 +28,7 @@ public class MediaController : ControllerBase
         return Ok(media);
     }
 
-    [HttpGet("{id}")]
+    [HttpGet("{id:guid}")]
     public async Task<ActionResult<MediaDto>> GetById(Guid id)
     {
         _logger.LogInformation("Getting media item by ID: {MediaId}", id);
@@ -65,6 +68,41 @@ public class MediaController : ControllerBase
 
         var media = await _mediaService.GetByTagsAsync(tagList);
         return Ok(media);
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<PagedResult<MediaDto>>> Search([FromQuery] MediaSearchParameters parameters, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var query = MediaQueryParser.ParseSearch(parameters, errors);
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors));
+        }
+
+        _logger.LogInformation("Searching media: page {Page}, page size {PageSize}, sort {Sort}", query.Page, query.PageSize, query.Sort);
+        return Ok(await _mediaQueryService.SearchAsync(query, cancellationToken));
+    }
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<MediaStatsDto>> GetStats([FromQuery] MediaStatsParameters parameters, CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var query = MediaQueryParser.ParseStats(parameters, errors);
+        if (errors.Count > 0)
+        {
+            return ValidationProblem(new ValidationProblemDetails(errors));
+        }
+
+        _logger.LogInformation("Computing media stats grouped by {GroupBy}", query.GroupBy);
+        try
+        {
+            return Ok(await _mediaQueryService.GetStatsAsync(query, cancellationToken));
+        }
+        catch (InvalidMediaQueryException ex)
+        {
+            return ValidationProblem(new ValidationProblemDetails(new Dictionary<string, string[]> { [ex.Field] = new[] { ex.Message } }));
+        }
     }
 
     [HttpPost]
@@ -126,7 +164,7 @@ public class MediaController : ControllerBase
         }
     }
 
-    [HttpPut("{id}")]
+    [HttpPut("{id:guid}")]
     public async Task<ActionResult<MediaDto>> Update(Guid id, [FromBody] UpdateMediaDto updateDto)
     {
         _logger.LogInformation("Updating media item: {MediaId}", id);
@@ -141,7 +179,7 @@ public class MediaController : ControllerBase
         return Ok(media);
     }
 
-    [HttpDelete("{id}")]
+    [HttpDelete("{id:guid}")]
     public async Task<ActionResult> Delete(Guid id)
     {
         _logger.LogInformation("Deleting media item: {MediaId}", id);
@@ -156,7 +194,7 @@ public class MediaController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("{id}/file")]
+    [HttpGet("{id:guid}/file")]
     public async Task<ActionResult> GetFile(Guid id)
     {
         _logger.LogInformation("Getting file for media item: {MediaId}", id);

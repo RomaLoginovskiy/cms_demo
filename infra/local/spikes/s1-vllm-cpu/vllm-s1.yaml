@@ -1,0 +1,140 @@
+# Spike S1 (spec/components/vllm-serving.md): vLLM CPU backend on the floci k3s cluster (arm64).
+# Applied by hand with kubectl, not by Argo CD. P3 replaces this with deploy/apps/llm.
+# Change the dtype without editing: kubectl -n llm set env deploy/vllm VLLM_DTYPE=float32
+# Image v0.31.0: v0.32.0 and v0.33.0 crash on the first request on CPUs without Triton (vllm#61131).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-models
+  namespace: llm
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-model
+  namespace: llm
+data:
+  # 0.6B fits next to the apps at a 12 GiB k3s cap; Qwen/Qwen3-1.7B @ 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+  # needs a 7-9 GiB pod (S1 run 2).
+  MODEL_ID: Qwen/Qwen3-0.6B
+  MODEL_REVISION: c1899de289a04d12100db370d81485cdf75e47ca
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: llm
+  labels: { app: vllm }
+spec:
+  # 0 by default: the floci node is shared with the incident demo; scale up only for a test window.
+  replicas: 0
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app: vllm }
+  template:
+    metadata:
+      labels: { app: vllm }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: /metrics
+    spec:
+      automountServiceAccountToken: false
+      # Service "vllm" would inject VLLM_PORT=tcp://…, which vLLM reads as its own setting and crashes on.
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: fetch-model
+          image: docker.io/vllm/vllm-openai-cpu:v0.31.0-arm64@sha256:045fb648a61cfcd32d4b9ca5d0c391013afadae0178d2e23ac292597f2f64036
+          command: ["sh", "-c", 'hf download "$MODEL_ID" --revision "$MODEL_REVISION" --quiet']
+          envFrom:
+            - configMapRef: { name: vllm-model }
+          env:
+            - { name: HF_HOME, value: /models }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits: { cpu: "1", memory: 2Gi }   # 1Gi OOM-killed the v0.31.0 hf download (S1)
+          volumeMounts:
+            - { name: models, mountPath: /models }
+      containers:
+        - name: vllm
+          image: docker.io/vllm/vllm-openai-cpu:v0.31.0-arm64@sha256:045fb648a61cfcd32d4b9ca5d0c391013afadae0178d2e23ac292597f2f64036
+          # Image entrypoint is `vllm serve`.
+          args:
+            - $(MODEL_ID)
+            - --revision=$(MODEL_REVISION)
+            - --served-model-name=cms-agent-llm
+            - --dtype=$(VLLM_DTYPE)
+            # Sized for the shared 12 GiB floci node (S1 run 3): one sequence, small prefill chunks and a
+            # 6k context keep warm-up under the limit; a two-round agent chat with capped tool results fits.
+            - --max-model-len=6144
+            - --max-num-seqs=1
+            - --max-num-batched-tokens=2048
+            - --enable-auto-tool-choice
+            - --tool-call-parser=hermes
+            - --reasoning-parser=qwen3
+            # Qwen3 reasons in every round unless the chat template is told otherwise; /no_think in the system
+            # prompt did not stop it after a tool result (S1 run 6). The agent also sends this per request.
+            - '--default-chat-template-kwargs={"enable_thinking": false}'
+            - --port=8000
+          envFrom:
+            - configMapRef: { name: vllm-model }
+          env:
+            - { name: VLLM_DTYPE, value: float16 }   # Apple M1 has no BF16 (FEAT_BF16=0)
+            - { name: HF_HOME, value: /models }
+            - { name: HF_HUB_OFFLINE, value: "1" }
+            - { name: VLLM_CPU_KVCACHE_SPACE, value: "1" }   # whole GiB only (int); ~9k tokens
+          ports:
+            - { name: http, containerPort: 8000 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: "3", memory: 4Gi }
+            limits: { cpu: "5", memory: 6Gi }   # 5Gi starts but is OOM-killed on the first request (S1 run 4)
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+            failureThreshold: 90
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+            failureThreshold: 5
+          volumeMounts:
+            - { name: models, mountPath: /models }
+            - { name: dshm, mountPath: /dev/shm }
+      volumes:
+        - name: models
+          persistentVolumeClaim: { claimName: vllm-models }
+        - name: dshm
+          emptyDir: { medium: Memory, sizeLimit: 1Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: llm
+spec:
+  selector: { app: vllm }
+  ports:
+    - { name: http, port: 8000, targetPort: http }

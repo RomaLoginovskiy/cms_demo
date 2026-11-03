@@ -30,6 +30,10 @@ spec:
         - repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
           targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
           ref: values
+        # Coralogix ops-events key for Notifications (ADR-025); ESO's CRDs may not exist yet at bootstrap.
+        - repoURL: '{{index .metadata.annotations "gitops_repo_url"}}'
+          targetRevision: '{{index .metadata.annotations "gitops_revision"}}'
+          path: deploy/platform/argo-cd/notifications
       destination:
         server: '{{.server}}'
         namespace: argocd
@@ -39,6 +43,7 @@ spec:
           selfHeal: true
         syncOptions:
           - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
         retry:
           limit: 10
           backoff: { duration: 10s, factor: 2, maxDuration: 5m }

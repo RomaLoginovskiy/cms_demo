@@ -9,6 +9,7 @@ infra/
     stacks/      bootstrap (AWS state bucket), global (ECR, CI roles, budget), infra (VPC, EKS, MSK, config), gitops (Argo CD)
     envs/<env>/  backend.hcl + <stack>.tfvars   (local = floci, dev = AWS)
   local/         floci docker-compose.yml and scripts
+  scripts/       ops-event.sh: Coralogix annotations (CI, tf.sh); spec/components/coralogix-annotations.md
   mk/            make targets (included by the root Makefile)
 ```
 
@@ -30,7 +31,7 @@ Then:
 - kubectl: `export KUBECONFIG=infra/local/.kubeconfig`
 - Argo CD: `kubectl -n argocd port-forward svc/argocd-server 8081:80` (user `admin`, password in secret `argocd-initial-admin-secret`)
 - Load generator UI: `kubectl -n cms-demo port-forward svc/canvas-load 8090:8090`
-- Real telemetry: copy `infra/local/.secrets.env.example` to `infra/local/.secrets.env`, then `make local-secrets`
+- Real telemetry: copy `infra/local/.secrets.env.example` to `infra/local/.secrets.env`, then `make local-secrets` (`CX_OPS_EVENTS_API_KEY` there also turns on Coralogix annotations from Argo CD and local Terraform applies)
 - After manifest changes: `make local-sync` (new snapshot; Argo CD refreshes, and syncs still retrying an older snapshot are restarted)
 - After code changes: `make local-images`, then `make local-gitops` (new snapshot and image tag)
 - Track a pushed GitHub branch instead: `make local-retarget BRANCH=<branch>` (`BRANCH=local` returns to the mirror)
@@ -48,13 +49,15 @@ Open decisions Q1, Q3, Q4 and Q5 (delivery plan) are placeholders in `envs/dev/*
    terraform -chdir=infra/terraform/stacks/bootstrap init
    terraform -chdir=infra/terraform/stacks/bootstrap apply -var account_id=<account>
    ```
-2. `make tf ENV=dev STACK=global CMD=apply` (ECR, GitHub OIDC roles, budget). Set repository variables `AWS_ACCOUNT_ID`, `PROMOTION_APP_ID` and secret `PROMOTION_APP_PRIVATE_KEY` for the workflows.
+2. `make tf ENV=dev STACK=global CMD=apply` (ECR, GitHub OIDC roles, budget). Set repository variables `AWS_ACCOUNT_ID`, `PROMOTION_APP_ID` and secret `PROMOTION_APP_PRIVATE_KEY` for the workflows, plus secret `CX_OPS_EVENTS_API_KEY` (Send-Your-Data key with the OpsEvents preset; optional variable `CX_DOMAIN`, default `eu1.coralogix.com`) for Coralogix annotations.
 3. `make tf ENV=dev STACK=infra CMD=apply` (or merge to `main`: `terraform.yml` applies after `dev` environment approval).
 4. Write the secret values:
    ```bash
    aws secretsmanager put-secret-value --secret-id cms-demo/dev/coralogix-ingest --secret-string '{"PRIVATE_KEY":"..."}'
    aws secretsmanager put-secret-value --secret-id cms-demo/dev/coralogix-rum --secret-string '{"RUM_PUBLIC_KEY":"..."}'
+   aws secretsmanager put-secret-value --secret-id cms-demo/dev/coralogix-ops-events --secret-string '{"API_KEY":"..."}'
    ```
+   Operator Terraform runs record annotations too when `CX_OPS_EVENTS_API_KEY` is exported.
 5. From an address in `admin_cidrs`: `make tf ENV=dev STACK=gitops CMD=apply`. Argo CD takes over from there.
 
 Teardown: `make predestroy ENV=dev KUBE_CONTEXT=<context>`, then destroy `gitops`, then `infra`.

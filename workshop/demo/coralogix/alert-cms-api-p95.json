@@ -1,0 +1,50 @@
+{
+  "alertDefProperties": {
+    "name": "[cms-local] CMS API p95 latency > 150 ms",
+    "description": "P1 · owning team: cms-platform (routing.team, Cases routed by router cms-platform to #production-alerts). p95 latency of demo-cms-api server spans (Coralogix APM span metrics, health checks excluded) is above 150 ms (2-minute rate, held for 1 minute) in cluster cms-local. Baseline is about 50 ms. Dashboard: ${DASHBOARD_URL} · Runbook: spec/components/workshop-scenarios.md, INC-1 (cms_demo repo).",
+    "priority": "ALERT_DEF_PRIORITY_P1",
+    "type": "ALERT_DEF_TYPE_METRIC_THRESHOLD",
+    "enabled": true,
+    "groupByKeys": [],
+    "entityLabels": {
+      "team": "cms-platform",
+      "service": "demo-cms-api",
+      "cluster": "cms-local",
+      "workshop": "cms-incident-demo",
+      "routing.team": "cms-platform"
+    },
+    "phantomMode": false,
+    "incidentsSettings": {
+      "minutes": 10,
+      "notifyOn": "NOTIFY_ON_TRIGGERED_AND_RESOLVED"
+    },
+    "notificationGroup": {
+      "groupByKeys": [],
+      "webhooks": [],
+      "destinations": []
+    },
+    "metricThreshold": {
+      "metricFilter": {
+        "promql": "histogram_quantile(0.95, sum by (le) (rate(duration_ms_bucket{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\", span_kind=\"SPAN_KIND_SERVER\", span_name!~\"GET /(healthz|ready)\"}[2m])))"
+      },
+      "rules": [
+        {
+          "condition": {
+            "threshold": 150,
+            "forOverPct": 100,
+            "ofTheLast": {
+              "metricTimeWindowSpecificValue": "METRIC_TIME_WINDOW_VALUE_MINUTES_1_OR_UNSPECIFIED"
+            },
+            "conditionType": "METRIC_THRESHOLD_CONDITION_TYPE_MORE_THAN_OR_UNSPECIFIED"
+          },
+          "override": {
+            "priority": "ALERT_DEF_PRIORITY_P1"
+          }
+        }
+      ],
+      "missingValues": {
+        "replaceWithZero": false
+      }
+    }
+  }
+}

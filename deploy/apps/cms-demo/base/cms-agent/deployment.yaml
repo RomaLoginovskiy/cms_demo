@@ -1,0 +1,125 @@
+# CMS media agent (spec/components/cms-media-agent.md). Stateless; talks to cms-backend and to vLLM in
+# namespace "llm". Base values fit the GPU profile; the local overlay sets the CPU-profile timeouts.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-agent
+  labels:
+    app: cms-agent
+    component: agent
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cms-agent
+  template:
+    metadata:
+      labels:
+        app: cms-agent
+        component: agent
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cms-agent
+          image: cms-agent
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: Cms__BaseUrl
+              value: "http://cms-backend:8080"
+            - name: Llm__BaseUrl
+              value: "http://vllm.llm.svc.cluster.local:8000/v1"
+            - name: Llm__Model
+              value: "cms-agent-llm"
+            - name: Cors__Origin
+              valueFrom:
+                secretKeyRef:
+                  name: app-endpoints
+                  key: PUBLIC_ORIGIN
+            - name: OpenTelemetry__ServiceName
+              value: "demo-cms-agent"
+            - name: OpenTelemetry__ServiceVersion
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: APP_VERSION
+            - name: NODE
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OpenTelemetry__OtlpEndpoint
+              value: "http://$(NODE):4318"
+            # deployment.environment.name: APM environment, matched by Coralogix annotations (ADR-025).
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: DEPLOYMENT_ENVIRONMENT
+            # Same as cms-backend: APM-to-infrastructure correlation joins spans to pod and node metrics on
+            # k8s.pod.name and k8s.node.name. k8s.pod.ip is the agent's first k8sattributes association
+            # source, so spans still get k8s.deployment.name when the connection IP is SNATed.
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_NAMESPACE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: K8S_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT),k8s.pod.name=$(K8S_POD_NAME),k8s.namespace.name=$(K8S_NAMESPACE_NAME),k8s.node.name=$(K8S_NODE_NAME),k8s.pod.ip=$(K8S_POD_IP)"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            runAsNonRoot: true
+            runAsUser: 1654
+            runAsGroup: 1654
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

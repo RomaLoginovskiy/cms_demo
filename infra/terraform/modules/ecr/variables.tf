@@ -7,7 +7,7 @@ variable "prefix" {
 variable "repositories" {
   description = "Repository names under the prefix (one per deployable)"
   type        = list(string)
-  default     = ["cms-backend", "media-worker", "cms-frontend", "canvas-backend", "canvas-frontend", "canvas-load"]
+  default     = ["cms-backend", "media-worker", "cms-agent", "cms-frontend", "canvas-backend", "canvas-frontend", "canvas-load"]
 }
 
 variable "image_tag_mutability" {

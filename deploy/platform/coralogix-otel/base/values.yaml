@@ -34,13 +34,65 @@ opentelemetry-cluster-collector:
     clusterMetrics:
       enabled: true
   config:
+    receivers:
+      # kube-state-metrics (deploy/platform/kube-state-metrics): kube_pod_info / kube_node_info for
+      # APM-to-infrastructure correlation, as the chart's values-cluster-ksm.yaml does.
+      prometheus/ksm:
+        config:
+          scrape_configs:
+            - job_name: kube-state-metrics
+              scrape_interval: 30s
+              static_configs:
+                - targets: [kube-state-metrics.observability.svc.cluster.local:8080]
+      # node-exporter (deploy/platform/node-exporter, hostNetwork): one target per node at <node IP>:9100.
+      # Host-level families only, to keep series per node bounded.
+      prometheus/node-exporter:
+        config:
+          scrape_configs:
+            - job_name: node-exporter
+              scrape_interval: 30s
+              kubernetes_sd_configs:
+                - role: pod
+                  namespaces:
+                    names: [observability]
+                  selectors:
+                    - role: pod
+                      label: app.kubernetes.io/name=prometheus-node-exporter
+              relabel_configs:
+                - source_labels: [__meta_kubernetes_pod_container_port_number]
+                  regex: "9100"
+                  action: keep
+                - source_labels: [__meta_kubernetes_pod_node_name]
+                  target_label: node
+              metric_relabel_configs:
+                - source_labels: [__name__]
+                  regex: node_(cpu_seconds_total|load1|load5|load15|memory_.+|filesystem_(size|avail|free)_bytes|network_(receive|transmit)_(bytes|errs|drop)_total|disk_(read|written)_bytes_total|uname_info|boot_time_seconds)
+                  action: keep
+    processors:
+      # The Prometheus receiver moves the target's instance label into service.instance.id; Coralogix
+      # APM matches node_* series on instance (internal IP:9100), so put it back on the data points.
+      # Coralogix appends _total to counters, so strip the Prometheus one (as transform/prometheus does
+      # for the collector's own metrics); otherwise node_cpu_seconds_total lands as ..._total_total.
+      transform/node-exporter-instance:
+        error_mode: ignore
+        metric_statements:
+          - context: metric
+            statements:
+              - replace_pattern(metric.name, "_total$", "") where resource.attributes["service.name"] == "node-exporter"
+          - context: datapoint
+            statements:
+              - set(datapoint.attributes["instance"], resource.attributes["service.instance.id"]) where resource.attributes["service.name"] == "node-exporter"
     service:
       pipelines:
         metrics:
-          receivers: [k8s_cluster, prometheus, prometheus/k8s_apiserver_metrics, otlp]
+          receivers: [k8s_cluster, prometheus, prometheus/k8s_apiserver_metrics, prometheus/ksm, prometheus/node-exporter, otlp]
+          processors: [memory_limiter, transform/node-exporter-instance]
 
 opentelemetry-agent:
-  hostNetwork: false
+  # Chart default. Apps export to status.hostIP:4318; through a hostPort the portmap CNI masquerades
+  # every same-node pod, so k8sattributes (pod_association from: connection) sees the bridge IP and
+  # spans and spanmetrics lose k8s.pod.name / k8s.node.name, which APM-to-infrastructure correlation needs.
+  hostNetwork: true
   # Env vars from Secrets are read only at start, so Reloader restarts the pods when the key changes.
   annotations:
     secret.reloader.stakater.com/reload: coralogix-keys
@@ -50,7 +102,8 @@ opentelemetry-agent:
     profilesCollection:
       enabled: true
     spanMetrics:
-      histogramBuckets: [50ms, 100ms, 200ms]
+      # ADR-024 item 1: bounds above 200 ms, so p95 is not capped during incidents (the P1 alert uses 150 ms).
+      histogramBuckets: [5ms, 10ms, 25ms, 50ms, 100ms, 150ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s, 30s]
       dbMetrics:
         enabled: true
     logsCollection:
@@ -64,7 +117,7 @@ opentelemetry-agent:
         enabled: true
     hostEntityEvents:
       enabled: true
-    # IMDS is unreachable from pods at hop limit 1; Kubernetes attributes come from k8sattributes.
+    # Off by choice: Kubernetes attributes come from k8sattributes.
     resourceDetection:
       enabled: false
     reduceResourceAttributes:

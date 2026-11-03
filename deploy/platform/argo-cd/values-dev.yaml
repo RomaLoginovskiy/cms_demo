@@ -1,2 +1,4 @@
-# dev: defaults from values.yaml.
-{}
+# dev: defaults from values.yaml; only the annotation environment is set here.
+notifications:
+  context:
+    environment: dev

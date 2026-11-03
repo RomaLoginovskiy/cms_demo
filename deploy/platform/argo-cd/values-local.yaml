@@ -5,3 +5,6 @@ controller:
 repoServer:
   resources:
     requests: { cpu: 50m, memory: 192Mi }
+notifications:
+  context:
+    environment: local

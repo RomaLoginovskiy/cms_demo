@@ -1,0 +1,7 @@
+# Node Exporter for Coralogix APM-to-infrastructure correlation: APM matches node_* series on
+# instance (node internal IP:9100, see kube_node_info). Scraped by the cluster collector's
+# prometheus/node-exporter receiver (platform/coralogix-otel/base/values.yaml). Chart defaults keep
+# hostNetwork and hostPID, so the target address is the node IP.
+resources:
+  requests: { cpu: 10m, memory: 32Mi }
+  limits: { memory: 128Mi }

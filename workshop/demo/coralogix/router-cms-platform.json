@@ -1,0 +1,26 @@
+{
+  "router": {
+    "name": "cms-platform",
+    "description": "Routes Cases of team cms-platform (alerts labelled routing.team=cms-platform) to Slack #production-alerts. Created by workshop/demo/coralogix/apply.sh (cms_demo).",
+    "routingLabels": {
+      "team": "cms-platform"
+    },
+    "entityLabels": {},
+    "rules": [
+      {
+        "name": "cms-platform cases to #production-alerts",
+        "entityType": "CASES",
+        "condition": "true",
+        "targets": [
+          {
+            "connectorId": "${CONNECTOR_ID}",
+            "presetId": "preset_system_slack_cases_basic",
+            "customDetails": {}
+          }
+        ],
+        "customDetails": {}
+      }
+    ],
+    "fallback": []
+  }
+}

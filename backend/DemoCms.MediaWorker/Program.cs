@@ -19,7 +19,11 @@ var host = Host.CreateDefaultBuilder(args)
     .ConfigureLogging((context, logging) =>
     {
         logging.ClearProviders();
-        logging.AddConsole();
+        // One line per entry: the node agent ships every stdout line as its own log record.
+        logging.AddSimpleConsole(console => console.SingleLine = true);
+        // HttpClient logs four lines per request, including the OTLP exporters' own posts.
+        // Set in code: appsettings.json is not part of the published image.
+        logging.AddFilter("System.Net.Http.HttpClient", LogLevel.Warning);
         logging.AddOpenTelemetry(options =>
         {
             options.IncludeFormattedMessage = true;
@@ -51,7 +55,7 @@ var host = Host.CreateDefaultBuilder(args)
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
-                .AddService(serviceName, serviceVersion)
+                .AddService(serviceName, serviceVersion: serviceVersion)
                 .AddAttributes(new Dictionary<string, object>
                 {
                     ["environment"] = context.HostingEnvironment.EnvironmentName,

@@ -119,7 +119,7 @@ Each WP is tested on floci first (floci S3, RDS Postgres container, Redpanda), t
 | Q2 | Region | `eu-west-1` (same region as Coralogix EU1) | phase 1 |
 | Q3 | Public domain and Route 53 zone for `cms-dev.<domain>` | delegate a subdomain to Route 53 | phase 2 |
 | Q4 | `dev` exposure | NLB allowlist of office/VPN CIDRs | phase 2 |
-| Q5 | Captioning endpoint | media-worker runs with placeholder endpoint `http://llm.invalid/v1` (consumes events, captions fail fast, nothing written back) until the title bug is fixed; then an external OpenAI-compatible endpoint (key in Secrets Manager) or a small in-cluster Ollama vision model as an optional component; Bedrock would need a code change | phase 2 |
+| Q5 | Captioning endpoint | media-worker runs with placeholder endpoint `http://llm.invalid/v1` (consumes events, skips the caption call for the `.invalid` host, nothing written back) until the title bug is fixed; then an external OpenAI-compatible endpoint (key in Secrets Manager) or a small in-cluster Ollama vision model as an optional component; Bedrock would need a code change | phase 2 |
 | Q6 | Load generator in `dev` | on, 1 replica, 10 users; revisit after the first week's cost | phase 2 |
 | Q7 | Container log path on EKS | **decided 2026-11-02 (owner)**: agent → Coralogix directly, the chart's default; no Kafka topic or `otel-gateway` for logs | phase 2 |
 | Q8 | Argo CD UI access | `kubectl port-forward` in `dev`; route + SSO in phase 4 | phase 2 |

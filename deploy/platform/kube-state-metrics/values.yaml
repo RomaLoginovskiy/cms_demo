@@ -1,0 +1,26 @@
+# kube-state-metrics for Coralogix APM-to-infrastructure correlation: APM matches spans to
+# kube_pod_info / kube_node_info. Scraped by the cluster collector's prometheus/ksm receiver
+# (platform/coralogix-otel/base/values.yaml); allowlist from the otel-integration README plus kube_node_info.
+# The chart also synthesizes a kube_node_info from k8s.node.allocatable_cpu (labels k8s_node_name,
+# kubelet_version); this one carries node and internal_ip, so filter on those labels.
+collectors:
+  - nodes
+  - pods
+  - horizontalpodautoscalers
+metricAllowlist:
+  - kube_node_info
+  - kube_pod_info
+  - kube_pod_labels
+  - kube_pod_container_status_waiting
+  - kube_pod_container_status_waiting_reason
+  - kube_horizontalpodautoscaler_labels
+  - kube_horizontalpodautoscaler_spec_max_replicas
+  - kube_horizontalpodautoscaler_status_current_replicas
+metricLabelsAllowlist:
+  - pods=[app,component]
+  - horizontalpodautoscalers=[app,component]
+# Scraped explicitly by prometheus/ksm, not by annotation discovery.
+prometheusScrape: false
+resources:
+  requests: { cpu: 10m, memory: 64Mi }
+  limits: { memory: 256Mi }

@@ -1,6 +1,6 @@
 # Spec Index
 
-Last updated: 2026-10-30
+Last updated: 2026-11-02
 
 ## Architecture Decision Records
 
@@ -19,6 +19,11 @@ Last updated: 2026-10-30
 - [ADR-018: Edge Routing on EKS with Gateway API (Envoy Gateway)](adr/ADR-018-eks-edge-routing-gateway-api.md) — Status: Proposed
 - [ADR-019: Workload Identity via IRSA in All Environments](adr/ADR-019-workload-identity-irsa.md) — Status: Proposed
 - [ADR-020: Mapping State and Messaging onto AWS Services (Phased)](adr/ADR-020-aws-data-services-mapping.md) — Status: Proposed
+- [ADR-021: CMS Media Q&A Agent via Tool Calling over the CMS API](adr/ADR-021-cms-media-qa-agent.md) — Status: Proposed
+- [ADR-022: Self-Hosted LLM Serving with vLLM (CPU Locally, GPU on EKS)](adr/ADR-022-vllm-model-serving.md) — Status: Proposed
+- [ADR-023: Incident Detection and Investigation Demo and Workshop on cms-demo](adr/ADR-023-incident-workshop.md) — Status: Proposed (v1: live demo on a local Mac; v2: hands-on lab)
+- [ADR-024: Investigation-Grade Telemetry, Change Events and Detection as Code](adr/ADR-024-investigation-telemetry.md) — Status: Proposed
+- [ADR-025: Coralogix Annotations for CI/CD, Argo CD and Infrastructure Changes](adr/ADR-025-coralogix-annotations.md) — Status: Proposed (amends ADR-024 decision 4)
 - [ADR-026: OpenTelemetry Web SDK in the CMS Frontend](adr/ADR-026-cms-frontend-otel-web-sdk.md) — Status: Proposed (extends ADR-013)
 - [ADR-006: Synthetic RUM User Context for Load Testing](adr/ADR-006-rum-synthetic-user-context-load-testing.md) — Status: Proposed
 - [ADR-007: Loadgen Session Pacing for Long RUM Replays](adr/ADR-007-loadgen-long-rum-sessions.md) — Status: Proposed
@@ -33,6 +38,8 @@ Last updated: 2026-10-30
 - [Coralogix OTEL Helm Migration](architecture/coralogix-otel-helm-migration.md)
 - [AWS EKS Platform Architecture](architecture/aws-eks-platform.md)
 - [AWS EKS Delivery Plan](architecture/aws-eks-delivery-plan.md)
+- [Incident Detection and Investigation Demo (v1) and Workshop (v2)](architecture/incident-workshop.md) — demo flow (Slack → Olly → Coralogix UI, Claude Code side by side), delivery plan
+- [Incident Demo: Scope for the First Customer Run (2026-11-03)](architecture/incident-demo-scope-2026-11-03.md) — tomorrow's cut: Postgres-lite INC-1, auto scale-out commit, P1 APM alert to #production-alerts, Claude Code side by side
 
 ## Component Contracts
 
@@ -59,3 +66,10 @@ Last updated: 2026-10-30
 - [GitOps with Argo CD](components/gitops-argocd.md)
 - [floci Local AWS Environment](components/floci-local-environment.md)
 - [cms-demo Workload Contract on EKS](components/cms-demo-workload-contract.md)
+- [Coralogix Annotations (ops-events)](components/coralogix-annotations.md) — builds, CI, Argo CD syncs and Terraform applies on charts
+- [CMS Media Agent](components/cms-media-agent.md)
+- [vLLM Model Serving](components/vllm-serving.md)
+- [Demo and Lab Platform](components/workshop-lab-platform.md) — demo profile on floci, workshop baseline, injection, fix and reset; `lab` (v2)
+- [Incident Scenarios](components/workshop-scenarios.md) — demo beats (INC-1, INC-4, INC-0) and the INC-0…INC-8 catalog with answer keys
+- [Workshop Telemetry and Detection](components/workshop-telemetry-detection.md) — signals, emulated AWS, change events (with ADR-025), Slack/Olly, alerts, SLOs, dashboards
+- [Investigation Method, Demo Script, Skills and Facilitation](components/workshop-investigation-playbooks.md) — run of show, Olly and Claude Code scripts

@@ -70,6 +70,14 @@ spec:
                   fieldPath: status.hostIP
             - name: OpenTelemetry__OtlpEndpoint
               value: "http://$(NODE):4318"
+            # deployment.environment.name: APM environment, matched by Coralogix annotations (ADR-025).
+            - name: DEPLOYMENT_ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: build-info
+                  key: DEPLOYMENT_ENVIRONMENT
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

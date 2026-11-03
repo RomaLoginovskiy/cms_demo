@@ -29,6 +29,7 @@ spec:
           images:
             - 'cms-backend={{index .metadata.annotations "ecr_registry"}}/cms-demo/cms-backend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
             - 'media-worker={{index .metadata.annotations "ecr_registry"}}/cms-demo/media-worker{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
+            - 'cms-agent={{index .metadata.annotations "ecr_registry"}}/cms-demo/cms-agent{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
             - 'cms-frontend={{index .metadata.annotations "ecr_registry"}}/cms-demo/cms-frontend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
             - 'canvas-backend={{index .metadata.annotations "ecr_registry"}}/cms-demo/canvas-backend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'
             - 'canvas-frontend={{index .metadata.annotations "ecr_registry"}}/cms-demo/canvas-frontend{{with index .metadata.annotations "image_tag_override"}}:{{.}}{{end}}'

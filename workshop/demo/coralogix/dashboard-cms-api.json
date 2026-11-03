@@ -1,0 +1,672 @@
+{
+  "name": "cms-demo · API health (cms-local)",
+  "description": "Golden signals of demo-cms-api on cms-local with database and scaling context. Linked from the P1 alert '[cms-local] CMS API p95 latency > 150 ms'. Owner: cms-platform. Source: workshop/demo/coralogix in the cms_demo repo.",
+  "layout": {
+    "sections": [
+      {
+        "id": {
+          "value": "a4456cd0-92b8-54aa-a600-5e06112a40af"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "f1e5d343-ed82-5616-8ca0-0550d2c840bd"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "a342a08a-2cc7-5558-9663-b73a5555d592"
+                },
+                "title": "API p95 latency (ms)",
+                "description": "demo-cms-api server spans, health checks excluded. The P1 alert fires above 150 ms for 2 min.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "12d5b8e4-ebf2-5395-9ae7-84a53d88ccee",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "histogram_quantile(0.95, sum by (le) (rate(duration_ms_bucket{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\", span_kind=\"SPAN_KIND_SERVER\", span_name!~\"GET /(healthz|ready)\"}[2m])))"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "p95 ms",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "e98015af-3163-5d78-adb3-c88bdb9f12ea"
+                },
+                "title": "API requests/s by route",
+                "description": "Server spans per route (span name).",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "7d6a0bed-514a-5107-878a-065491fbca35",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum by (span_name) (rate(calls_total{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\", span_kind=\"SPAN_KIND_SERVER\", span_name!~\"GET /(healthz|ready)\"}[2m]))"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "req/s",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "8abd3ed1-8fba-5c8c-8173-36aa530703d0"
+                },
+                "title": "API error ratio",
+                "description": "Share of server spans with error status.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "d951a353-5bd4-5795-a029-8f0845aae791",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "(sum(rate(calls_total{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\", span_kind=\"SPAN_KIND_SERVER\", status_code=\"STATUS_CODE_ERROR\"}[2m])) or vector(0)) / sum(rate(calls_total{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\", span_kind=\"SPAN_KIND_SERVER\"}[2m]))"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "error ratio",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          },
+          {
+            "id": {
+              "value": "cf2bc4ca-b55c-56c6-a7d1-24f50f25e9d1"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "9c161316-06fb-5ea1-b8c1-7e60b83c4a46"
+                },
+                "title": "DB call p95 (ms)",
+                "description": "Database client spans of demo-cms-api (EF Core).",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "7823eb15-caa6-5388-aa39-a8b1208de186",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "histogram_quantile(0.95, sum by (le) (rate(db_duration_ms_bucket{service_name=\"demo-cms-api\", k8s_cluster_name=\"cms-local\"}[2m])))"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "db p95 ms",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "007c2252-1edf-53e7-a636-202b13cccda8"
+                },
+                "title": "cms-backend replicas",
+                "description": "Available vs desired pods of Deployment cms-backend.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "6295cb28-5050-519a-bbba-f1920dbe9671",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum(k8s_deployment_available__pod_{k8s_cluster_name=\"cms-local\", k8s_namespace_name=\"cms-demo\", k8s_deployment_name=\"cms-backend\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "available",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      },
+                      {
+                        "id": "d60eb01e-506f-5da4-8fb9-0a17df306448",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum(k8s_deployment_desired__pod_{k8s_cluster_name=\"cms-local\", k8s_namespace_name=\"cms-demo\", k8s_deployment_name=\"cms-backend\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "desired",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "3177924d-d43c-586a-b5ef-8161076c23bd"
+                },
+                "title": "CPU cores: cms-backend and postgres",
+                "description": "Container CPU usage in cores (metric named utilization by the Coralogix chart).",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "bc51d434-e8a0-5f66-af7c-dfbacc787557",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum by (k8s_container_name) (container_cpu_utilization_1{k8s_cluster_name=\"cms-local\", k8s_namespace_name=\"cms-demo\", k8s_container_name=~\"cms-backend|postgres\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "cores",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "e6d4713d-5c5f-5ccd-acde-bb1978aba13e"
+                },
+                "title": "CPU throttling ratio",
+                "description": "Throttled CFS periods / all periods. Near 1 means the container is pinned at its CPU limit.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "0727fb03-c8d1-5484-9dad-8bfbb2924d82",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum by (container) (rate(container_cpu_cfs_throttled_periods_total_total{k8s_cluster_name=\"cms-local\", namespace=\"cms-demo\", container=~\"cms-backend|postgres\"}[2m])) / sum by (container) (rate(container_cpu_cfs_periods_total_total{k8s_cluster_name=\"cms-local\", namespace=\"cms-demo\", container=~\"cms-backend|postgres\"}[2m]))"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "throttled",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          },
+          {
+            "id": {
+              "value": "64e578b5-942a-55c9-aad2-4c7091d1e499"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "06157a14-c33a-5e08-a289-a09081aef056"
+                },
+                "title": "AWS (emulated on floci) · EC2 CPUUtilization %",
+                "description": "AWS/EC2 CPUUtilization of the cms-local node (instance capacity, not pod limits). Emulated on floci by aws-signal-emulator from real node signals (cloud_emulated=true); same names as CloudWatch Metric Streams in Coralogix.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "f7c107c9-209a-510e-b590-3364dbdbf915",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "max by (InstanceId) (amazonaws_com_AWS_EC2_CPUUtilization{k8s_cluster_name=\"cms-local\", cloud_emulated=\"true\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "CPUUtilization",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "37d18254-ce05-5282-89b9-106e4dc26683"
+                },
+                "title": "AWS (emulated on floci) · EC2 StatusCheckFailed",
+                "description": "AWS/EC2 StatusCheckFailed (0 = healthy) from the node Ready condition. Emulated on floci by aws-signal-emulator from real node signals (cloud_emulated=true); same names as CloudWatch Metric Streams in Coralogix.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "66a034c5-e0a8-5321-b906-7c309bdae4d8",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "max by (InstanceId) (amazonaws_com_AWS_EC2_StatusCheckFailed{k8s_cluster_name=\"cms-local\", cloud_emulated=\"true\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "StatusCheckFailed",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "8f2f5a4c-e3e3-5320-a7c6-44302ac2c0e6"
+                },
+                "title": "AWS (emulated on floci) · EBS ops per minute",
+                "description": "AWS/EBS VolumeReadOps and VolumeWriteOps of the node volume that holds the local-path PVs (cms-postgres included). Emulated on floci by aws-signal-emulator from real node signals (cloud_emulated=true); same names as CloudWatch Metric Streams in Coralogix.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "a9c7e57d-e363-5ab4-b41f-49800c565f44",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum by (VolumeId) (amazonaws_com_AWS_EBS_VolumeReadOps{k8s_cluster_name=\"cms-local\", cloud_emulated=\"true\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "VolumeReadOps",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      },
+                      {
+                        "id": "b40362a3-5880-5584-9f79-c9685de63511",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "sum by (VolumeId) (amazonaws_com_AWS_EBS_VolumeWriteOps{k8s_cluster_name=\"cms-local\", cloud_emulated=\"true\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "VolumeWriteOps",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "e79b3fad-7386-56a1-8a61-cbea62e8c1fe"
+                },
+                "title": "AWS (emulated on floci) · EBS VolumeQueueLength",
+                "description": "AWS/EBS VolumeQueueLength (average outstanding I/O) of the node volume. Emulated on floci by aws-signal-emulator from real node signals (cloud_emulated=true); same names as CloudWatch Metric Streams in Coralogix.",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": true,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "578099ad-4dac-5f9e-9da0-84b1fe7ed149",
+                        "query": {
+                          "metrics": {
+                            "promqlQuery": {
+                              "value": "max by (VolumeId) (amazonaws_com_AWS_EBS_VolumeQueueLength{k8s_cluster_name=\"cms-local\", cloud_emulated=\"true\"})"
+                            },
+                            "filters": [],
+                            "editorMode": "METRICS_QUERY_EDITOR_MODE_TEXT",
+                            "seriesLimitType": "METRICS_SERIES_LIMIT_TYPE_BY_SERIES_COUNT"
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "name": "VolumeQueueLength",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_HIGH_UNSPECIFIED",
+                        "customUnit": "",
+                        "hashColors": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "demo-cms-api (cms-local)",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "variables": [],
+  "variablesV2": [],
+  "filters": [],
+  "relativeTimeFrame": "3600s",
+  "annotations": [],
+  "off": {},
+  "actions": []
+}

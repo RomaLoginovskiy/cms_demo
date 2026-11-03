@@ -46,6 +46,9 @@ module "app_config" {
     "coralogix-ingest" = { PRIVATE_KEY = "placeholder-not-a-key" }
     "coralogix-rum"    = { RUM_PUBLIC_KEY = "" }
     "llm"              = { API_KEY = "none" }
+    # Send-Your-Data key with the OpsEvents preset (annotations, ADR-025); Coralogix rejects the
+    # placeholder, and Argo CD Notifications logs the rejection without affecting syncs.
+    "coralogix-ops-events" = { API_KEY = "placeholder-not-a-key" }
   }
 
   reader_scopes = {
@@ -56,6 +59,11 @@ module "app_config" {
     # Telemetry goes from the agent straight to Coralogix, so observability needs no parameters.
     observability = {
       secrets            = ["coralogix-ingest"]
+      parameter_prefixes = []
+    }
+    # Argo CD Notifications posts annotations; it must never read the ingest key.
+    argocd = {
+      secrets            = ["coralogix-ops-events"]
       parameter_prefixes = []
     }
   }
@@ -103,6 +111,12 @@ module "eks" {
         service_account      = "eso-observability"
         create_inline_policy = true
         inline_policy_json   = module.app_config.reader_policy_json["observability"]
+      }
+      eso_argocd = {
+        namespace            = "external-secrets"
+        service_account      = "eso-argocd"
+        create_inline_policy = true
+        inline_policy_json   = module.app_config.reader_policy_json["argocd"]
       }
       aws_load_balancer_controller = {
         namespace                              = "kube-system"

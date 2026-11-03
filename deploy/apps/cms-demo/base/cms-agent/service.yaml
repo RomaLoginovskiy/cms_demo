@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms-agent
+  labels:
+    app: cms-agent
+    component: agent
+spec:
+  type: ClusterIP
+  selector:
+    app: cms-agent
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http

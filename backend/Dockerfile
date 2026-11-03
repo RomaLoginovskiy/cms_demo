@@ -9,6 +9,9 @@ COPY DemoCms.Infrastructure/*.csproj ./DemoCms.Infrastructure/
 COPY DemoCms.Api/*.csproj ./DemoCms.Api/
 COPY DemoCms.MediaWorker/*.csproj ./DemoCms.MediaWorker/
 COPY DemoCms.MediaWorker.Tests/*.csproj ./DemoCms.MediaWorker.Tests/
+COPY DemoCms.Infrastructure.Tests/*.csproj ./DemoCms.Infrastructure.Tests/
+COPY DemoCms.Agent/*.csproj ./DemoCms.Agent/
+COPY DemoCms.Agent.Tests/*.csproj ./DemoCms.Agent.Tests/
 
 # Restore dependencies
 RUN dotnet restore DemoCms.sln

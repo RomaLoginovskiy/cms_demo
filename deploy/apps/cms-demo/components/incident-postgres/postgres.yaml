@@ -1,0 +1,113 @@
+# Demo database only: trust auth inside the namespace (ingress is limited to cms-demo pods by the
+# base NetworkPolicies), no password in Git. max_connections=50 is the budget the scale-out breaks:
+# 20 pooled connections per cms-backend pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cms-postgres
+  labels:
+    app: cms-postgres
+    component: database
+spec:
+  selector:
+    app: cms-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cms-postgres
+  labels:
+    app: cms-postgres
+    component: database
+spec:
+  serviceName: cms-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cms-postgres
+  template:
+    metadata:
+      labels:
+        app: cms-postgres
+        component: database
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          args:
+            - -c
+            - max_connections=50
+            - -c
+            - shared_buffers=128MB
+            - -c
+            - log_min_duration_statement=1000
+          env:
+            - name: POSTGRES_DB
+              value: cms
+            - name: POSTGRES_USER
+              value: cms
+            - name: POSTGRES_HOST_AUTH_METHOD
+              value: trust
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+              name: postgres
+              protocol: TCP
+          # TCP probes: pg_isready opens a backend, so on a CPU-starved database the probes themselves
+          # time out, the Service drops the endpoint and kubelet restarts Postgres, turning a slowdown
+          # into an outage. The scenario is about the CPU limit, not about probes.
+          readinessProbe:
+            tcpSocket:
+              port: postgres
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "50m"
+            limits:
+              memory: "1Gi"
+              cpu: "2"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+      volumes:
+        - name: run
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi

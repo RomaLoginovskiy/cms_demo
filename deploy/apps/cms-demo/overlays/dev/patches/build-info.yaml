@@ -4,3 +4,4 @@ metadata:
   name: build-info
 data:
   APP_VERSION: sha-000000000000
+  DEPLOYMENT_ENVIRONMENT: dev

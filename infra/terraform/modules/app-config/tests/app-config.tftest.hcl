@@ -11,12 +11,14 @@ variables {
     "app/public_origin"       = "http://localhost:8080"
   }
   secrets = {
-    "coralogix-ingest" = { PRIVATE_KEY = "placeholder" }
-    "coralogix-rum"    = { RUM_PUBLIC_KEY = "" }
+    "coralogix-ingest"     = { PRIVATE_KEY = "placeholder" }
+    "coralogix-rum"        = { RUM_PUBLIC_KEY = "" }
+    "coralogix-ops-events" = { API_KEY = "placeholder" }
   }
   reader_scopes = {
     app           = { secrets = ["coralogix-rum"], parameter_prefixes = ["kafka", "app"] }
     observability = { secrets = ["coralogix-ingest"], parameter_prefixes = [] }
+    argocd        = { secrets = ["coralogix-ops-events"], parameter_prefixes = [] }
   }
 }
 
@@ -54,6 +56,11 @@ run "contract" {
   assert {
     condition     = !strcontains(output.reader_policy_json["app"], "coralogix-ingest")
     error_message = "The app reader must not be able to read the Coralogix ingest key."
+  }
+
+  assert {
+    condition     = !strcontains(output.reader_policy_json["argocd"], "coralogix-ingest")
+    error_message = "The argocd reader (annotations key) must not be able to read the Coralogix ingest key."
   }
 
   assert {

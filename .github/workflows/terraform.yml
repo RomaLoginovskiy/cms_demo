@@ -43,6 +43,10 @@ jobs:
     if: github.event_name == 'push' && vars.AWS_ACCOUNT_ID != ''
     runs-on: ubuntu-24.04-arm
     environment: dev
+    # tf.sh records every apply that changes something as a Coralogix annotation (ADR-025).
+    env:
+      CX_OPS_EVENTS_API_KEY: ${{ secrets.CX_OPS_EVENTS_API_KEY }}
+      CX_DOMAIN: ${{ vars.CX_DOMAIN }}
     steps:
       - uses: actions/checkout@v5
       - uses: hashicorp/setup-terraform@v3

@@ -85,7 +85,7 @@ The `local` environment has the same shape inside Docker; see [floci-local-envir
 | `external-secrets` | ESO | `restricted` |
 | `envoy-gateway-system` | Envoy Gateway controller | `baseline` |
 | `edge` | `Gateway cms-edge`, Envoy proxy pods | `baseline` |
-| `observability` | Coralogix otel-integration, `otel-agent` Service, `/v1/traces` route | `privileged` (hostPath, eBPF profiler) |
+| `observability` | Coralogix otel-integration, `otel-agent` Service, `/v1/traces` route, kube-state-metrics, Node Exporter | `privileged` (hostPath, eBPF profiler) |
 | `cms-demo` | application (namespace name kept: the load generator hard-codes it) | `baseline`, `warn: restricted` |
 | `kube-system` | EKS add-ons, AWS LBC, metrics-server | — |
 
@@ -100,6 +100,8 @@ The `local` environment has the same shape inside Docker; see [floci-local-envir
 | Envoy Gateway + Gateway API CRDs (`gateway-crds-helm`, standard channel) | 1.9.x | Argo CD | all | none |
 | AWS Load Balancer Controller | 3.6.x; `clusterName`/`vpcId`/`region` set from cluster annotations (no IMDS at hop limit 1); Gateway API feature gates **off**; `ignoreDifferences` on its render-time webhook certificate | Argo CD | AWS | IRSA |
 | metrics-server | current | Argo CD | AWS only (k3s bundles its own) | none |
+| kube-state-metrics (chart 8.8.x, allowlisted; scraped by the Coralogix cluster collector) | 2.20.x | Argo CD | all | none |
+| Node Exporter (chart `prometheus-node-exporter` 4.60.x, hostNetwork; scraped by the Coralogix cluster collector) | 1.12.x | Argo CD | all | none |
 | external-dns | 0.24.x, source `gateway-httproute`, one zone | Argo CD | AWS (mandatory: owns the public record) | IRSA |
 | Coralogix `otel-integration` | pinned at implementation | Argo CD (Kustomize `helmCharts`) | all | none |
 | StorageClass `gp3` (default, encrypted, `WaitForFirstConsumer`) | — | Argo CD | AWS | — |
