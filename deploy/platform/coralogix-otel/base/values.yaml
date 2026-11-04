@@ -1,11 +1,26 @@
 # Coralogix otel-integration values (from coralogix/values.yaml, ADR-016). Environment specifics
 # (clusterName, local-only switches) live in overlays/<env>/values.yaml.
 global:
-  domain: eu1.coralogix.com
+  # The team's region comes with its key: secret coralogix-keys (ESO, cms-demo/<env>/coralogix-ingest,
+  # properties PRIVATE_KEY and DOMAIN, written by `make local-secrets` from CX_DOMAIN). The chart puts
+  # the domain only into collector config (exporters, OpAMP), where the collector expands the env var.
+  domain: "${env:CORALOGIX_DOMAIN}"
   clusterName: set-per-environment
 
 opentelemetry-cluster-collector:
   replicaCount: 1
+  # Replaces the chart's list (Helm does not merge lists): its key, plus the region.
+  extraEnvs: &coralogix-envs
+    - name: CORALOGIX_PRIVATE_KEY
+      valueFrom:
+        secretKeyRef:
+          name: coralogix-keys
+          key: PRIVATE_KEY
+    - name: CORALOGIX_DOMAIN
+      valueFrom:
+        secretKeyRef:
+          name: coralogix-keys
+          key: DOMAIN
   # Env vars from Secrets are read only at start, so Reloader restarts the pods when the key changes.
   annotations:
     secret.reloader.stakater.com/reload: coralogix-keys
@@ -89,6 +104,7 @@ opentelemetry-cluster-collector:
           processors: [memory_limiter, transform/node-exporter-instance]
 
 opentelemetry-agent:
+  extraEnvs: *coralogix-envs
   # Chart default. Apps export to status.hostIP:4318; through a hostPort the portmap CNI masquerades
   # every same-node pod, so k8sattributes (pod_association from: connection) sees the bridge IP and
   # spans and spanmetrics lose k8s.pod.name / k8s.node.name, which APM-to-infrastructure correlation needs.
@@ -159,8 +175,10 @@ coralogix-ebpf-profiler:
 
 opentelemetry-ebpf-profiler:
   enabled: true
+  extraEnvs: *coralogix-envs
 
 opentelemetry-gateway:
+  extraEnvs: *coralogix-envs
   presets:
     reduceResourceAttributes:
       enabled: true

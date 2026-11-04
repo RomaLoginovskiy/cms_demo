@@ -43,12 +43,13 @@ module "app_config" {
   secrets = {
     # Non-empty: the Coralogix exporter refuses an empty key (collectors would crash-loop); export is
     # simply rejected until the real key is written. An empty RUM key disables the browser SDK.
-    "coralogix-ingest" = { PRIVATE_KEY = "placeholder-not-a-key" }
-    "coralogix-rum"    = { RUM_PUBLIC_KEY = "" }
+    # DOMAIN is the team's region, read by the collectors, the frontends and Argo CD Notifications.
+    "coralogix-ingest" = { PRIVATE_KEY = "placeholder-not-a-key", DOMAIN = var.coralogix_domain }
+    "coralogix-rum"    = { RUM_PUBLIC_KEY = "", DOMAIN = var.coralogix_domain }
     "llm"              = { API_KEY = "none" }
     # Send-Your-Data key with the OpsEvents preset (annotations, ADR-025); Coralogix rejects the
     # placeholder, and Argo CD Notifications logs the rejection without affecting syncs.
-    "coralogix-ops-events" = { API_KEY = "placeholder-not-a-key" }
+    "coralogix-ops-events" = { API_KEY = "placeholder-not-a-key", DOMAIN = var.coralogix_domain }
   }
 
   reader_scopes = {

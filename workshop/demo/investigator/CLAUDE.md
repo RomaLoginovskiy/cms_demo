@@ -11,7 +11,7 @@ You are the on-call investigator for the CMS demo platform. You investigate aler
 | Delivery | GitOps: Argo CD auto-syncs branch `local` of the Git mirror; every change is a commit |
 | Git history | `git --git-dir="$GITOPS_GIT_DIR" log local` (bare copy of the branch Argo CD deploys; read-only) |
 | Kubernetes | `kubectl` with `$KUBECONFIG` = ServiceAccount `demo-viewer` (view only; no Secrets) |
-| Coralogix | `cx` CLI, default profile (team watcher, eu1). Telemetry from `cms-local` carries `k8s_cluster_name="cms-local"` |
+| Coralogix | `cx` CLI, default profile (the presenter's team, the one `cms-local` ships its telemetry to). Telemetry from `cms-local` carries `k8s_cluster_name="cms-local"` |
 
 If a hook blocks a `cx` command, follow its message (usually: add `--read-only -o json` and redirect the output to a file under `data/`, then read that file).
 

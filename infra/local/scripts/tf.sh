@@ -14,12 +14,31 @@ env_dir="$TF_DIR/envs/$env"
 export TF_DATA_DIR="$dir/.terraform-$env"
 [ "$env" = "local" ] && use_identity
 
+# Committed values first, then for env local the operator's own (gitignored infra/local/<stack>.tfvars:
+# Coralogix team, Slack, IDs to adopt), which override them.
+var_files=(-var-file="$env_dir/$stack.tfvars")
+if [ "$env" = "local" ] && [ -f "$LOCAL_DIR/$stack.tfvars" ]; then
+  var_files+=(-var-file="$LOCAL_DIR/$stack.tfvars")
+fi
+
 # The Coralogix provider of the observability stack reads CORALOGIX_API_KEY; for env local it may
 # come from infra/local/.secrets.env.
 if [ "$stack" = "observability" ] && [ -z "${CORALOGIX_API_KEY:-}" ] && [ "$env" = "local" ] \
   && [ -f "$LOCAL_DIR/.secrets.env" ]; then
   CORALOGIX_API_KEY="$(sed -n 's/^CORALOGIX_API_KEY=//p' "$LOCAL_DIR/.secrets.env" | tail -n1)"
   export CORALOGIX_API_KEY
+fi
+
+# CX_DOMAIN is the environment's one Coralogix region setting (eu1.coralogix.com by default): the
+# annotations of applies (ops-event.sh), the observability stack's provider and the infra stack's
+# placeholder secrets use it (Terraform ignores TF_VAR_ for variables a stack does not declare). For
+# env local it may come from infra/local/.secrets.env, where `make local-secrets` also gives it to the
+# cluster.
+if [ -z "${CX_DOMAIN:-}" ] && [ "$env" = "local" ] && [ -f "$LOCAL_DIR/.secrets.env" ]; then
+  CX_DOMAIN="$(sed -n 's/^CX_DOMAIN=//p' "$LOCAL_DIR/.secrets.env" | tail -n1)"
+fi
+if [ -n "${CX_DOMAIN:-}" ]; then
+  export CX_DOMAIN TF_VAR_coralogix_domain="$CX_DOMAIN"
 fi
 
 terraform -chdir="$dir" init -input=false -reconfigure \
@@ -37,7 +56,7 @@ case "$1" in
     tf_log="$(mktemp "${TMPDIR:-/tmp}/tf-$1.XXXXXX")"
     trap 'rm -f "$tf_log"' EXIT
     set +e
-    terraform -chdir="$dir" "$@" -var-file="$env_dir/$stack.tfvars" 2>&1 | tee "$tf_log"
+    terraform -chdir="$dir" "$@" "${var_files[@]}" 2>&1 | tee "$tf_log"
     rc="${PIPESTATUS[0]}"
     set -e
     "$ROOT/infra/scripts/ops-event.sh" terraform --env "$env" --stack "$stack" --action "$1" \
@@ -45,7 +64,7 @@ case "$1" in
     exit "$rc"
     ;;
   plan|refresh|import|console)
-    terraform -chdir="$dir" "$@" -var-file="$env_dir/$stack.tfvars"
+    terraform -chdir="$dir" "$@" "${var_files[@]}"
     ;;
   *)
     terraform -chdir="$dir" "$@"

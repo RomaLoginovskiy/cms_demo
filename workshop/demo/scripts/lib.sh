@@ -56,10 +56,11 @@ mirror_push() {
 # marker once the sync settles; this one marks the push itself and does not depend on the sync.
 # Never fails the caller: ops-event.sh only warns (missing or rejected key).
 annotate_push() {
-  local key sha
+  local key domain sha
   key="$(sed -n 's/^CX_OPS_EVENTS_API_KEY=//p' "$LOCAL_DIR/.secrets.env" 2>/dev/null | tail -1 | tr -d "\"'")"
+  domain="${CX_DOMAIN:-$(sed -n 's/^CX_DOMAIN=//p' "$LOCAL_DIR/.secrets.env" 2>/dev/null | tail -1 | tr -d "\"'")}"
   sha="$(git -C "$MIRROR_DIR" rev-parse HEAD)"
-  CX_OPS_EVENTS_API_KEY="$key" "$ROOT/infra/scripts/ops-event.sh" custom \
+  CX_OPS_EVENTS_API_KEY="$key" CX_DOMAIN="${domain:-eu1.coralogix.com}" "$ROOT/infra/scripts/ops-event.sh" custom \
     --description "GitOps push to cms-local: $(git -C "$MIRROR_DIR" log -1 --format=%s)" \
     --service demo-cms-api --environment local \
     --extra category=gitops-push --extra origin=gitops-push \

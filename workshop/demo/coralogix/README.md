@@ -1,5 +1,13 @@
 # Coralogix objects for the cms-demo incident demo
 
+> **Superseded on 2026-11-03.** These objects are managed by the Terraform stack
+> [`infra/terraform/stacks/observability`](../../../infra/terraform/stacks/observability/), which adopted
+> the live objects with their IDs. Change them there and run
+> `make tf ENV=local STACK=observability CMD=apply` (see [infra/README.md](../../../infra/README.md)).
+> The files below are the history of how they were first created and are out of date: the router now
+> targets connector `slack-prod-alerts` (no preset), and the live dashboard has an "Ops events"
+> annotation. `apply.sh` refuses to run unless `LEGACY_APPLY=1`.
+
 Scope and context: [spec/architecture/incident-demo-scope-2026-11-03.md](../../../spec/architecture/incident-demo-scope-2026-11-03.md).
 
 | File | Creates |

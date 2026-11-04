@@ -18,7 +18,15 @@
 #         SOURCE_CONNECTOR  existing Slack connector whose integration is reused (default: slack-roman-internal)
 #         DRY_RUN=1         render and print the payloads, create nothing
 #         UPDATE_DASHBOARD=1 replace the existing dashboard (same id) with dashboard-cms-api.json
+#
+# Superseded on 2026-11-03 by the Terraform stack infra/terraform/stacks/observability, which manages
+# these objects. The JSON here is out of date; UPDATE_DASHBOARD=1 would overwrite the managed dashboard.
 set -euo pipefail
+
+if [[ "${LEGACY_APPLY:-0}" != "1" ]]; then
+  echo "apply.sh is superseded: run 'make tf ENV=local STACK=observability CMD=apply' (LEGACY_APPLY=1 overrides)" >&2
+  exit 1
+fi
 
 profile="${CX_PROFILE_NAME:-default}"
 source_connector="${SOURCE_CONNECTOR:-slack-roman-internal}"

@@ -55,7 +55,7 @@ notifications:
   # webhook name, so deploy templates sharing a name overwrite each other and only the last is sent.
   notifiers:
     service.webhook.coralogix-ops-events: &coralogix-ops-events |
-      url: https://api.eu1.coralogix.com/v1/ops-events
+      url: https://api.$coralogix-domain/v1/ops-events
       headers:
         - name: Authorization
           value: Bearer $coralogix-ops-events-token

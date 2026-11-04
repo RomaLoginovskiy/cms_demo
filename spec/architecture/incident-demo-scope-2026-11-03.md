@@ -3,7 +3,7 @@
 **Status**: Plan (2026-11-02)  
 **Presenter**: Roman Loginovskiy  
 **Design**: [incident-workshop.md](incident-workshop.md) (v1 demo); the incident is INC-1 in [workshop-scenarios.md](../components/workshop-scenarios.md#inc-1--right-sized-into-an-outage-flagship)  
-**Coralogix objects**: [`workshop/demo/coralogix/`](../../workshop/demo/coralogix/)
+**Coralogix objects**: Terraform stack [`infra/terraform/stacks/observability`](../../infra/terraform/stacks/observability/) since 2026-11-03 (first created by [`workshop/demo/coralogix/`](../../workshop/demo/coralogix/))
 
 The full v1 design takes weeks. This document fixes what is built **today** for **tomorrow's** customer demo, and what waits.
 
@@ -51,7 +51,7 @@ A 45–60 min presenter-led live demo from the presenter's Mac (floci).
 - INC-4, INC-0 and every other scenario.
 - Real AWS (`lab`); emulated MSK, CloudTrail and the other AWS signals of later incidents.
 - The S3 media store and other phase 3 work beyond the Postgres provider.
-- PostgreSQL and Kafka receivers, the remaining alerts, SLOs and dashboards; detection as Terraform.
+- PostgreSQL and Kafka receivers, the remaining alerts, SLOs and dashboards. (Detection as Terraform followed on 2026-11-03 for the demo's own objects; see section 4.)
 - Coralogix annotations (ADR-025): they help if the parallel session's work is live, but nothing depends on them.
 - The scenario-pack format, CI self-tests and guardrails.
 
@@ -79,13 +79,13 @@ Olly prompts: [Olly conversation script](../components/workshop-investigation-pl
 
 ## 4. Coralogix objects (created 2026-11-02)
 
-Team **watcher** (cx profile `default`, eu1). Definitions are in [`workshop/demo/coralogix/`](../../workshop/demo/coralogix/); [`apply.sh`](../../workshop/demo/coralogix/apply.sh) creates them in order, reuses existing objects by name, and wires the IDs together. All three were created on 2026-11-02; `apply.sh` prints their URLs. Re-running it reuses them by name.
+Team **watcher** (cx profile `default`, eu1). [`apply.sh`](../../workshop/demo/coralogix/apply.sh) created them on 2026-11-02 and 2026-11-03. **Since 2026-11-03 they are managed by the Terraform stack [`observability`](../../infra/terraform/stacks/observability/)** (ADR-024 decision 6), which adopted the live objects with their IDs: `make tf ENV=local STACK=observability CMD=apply`. Change them there, not in the UI or with `apply.sh`. The stack also holds the postgres FATAL alert, the two RUM dashboards and their folder.
 
 | Object | Name | Key settings |
 |---|---|---|
-| Slack connector | `slack-production-alerts` | channel `production-alerts`, fallback `roman-internal`; reuses the Slack integration of `slack-roman-internal` |
+| Slack connector | `slack-production-alerts` | channel `production-alerts`, fallback `roman-internal`; reuses the Slack integration of `slack-roman-internal`. **Unused since 2026-11-02 15:35**: that integration is the Coralogix corporate workspace, where `#production-alerts` does not exist, so the router was pointed at `slack-prod-alerts` (the watcher team's own Slack workspace, reply in thread) in the UI. Terraform manages `slack-prod-alerts`; this one is left unmanaged |
 | Dashboard | `cms-demo · API health (cms-local)` | 7 line charts: API p95, requests/s by route, error ratio, DB p95, cms-backend replicas, CPU cores (cms-backend, postgres), CPU throttling |
-| Alert | `[cms-local] CMS API p95 latency > 150 ms` | Metric threshold, **P1**: p95 on a 2-min rate above 150 ms, held for 1 min (the API rejects free-form `dynamicDuration`; the window is the 1-minute enum); entity label `team=cms-platform` (also `service`, `cluster`, `workshop`); the description carries the owner and the dashboard URL; destination: the connector above with preset "Alerts - Basic Slack"; notifies on triggered and resolved; re-notifies every 10 min |
+| Alert | `[cms-local] CMS API p95 latency > 150 ms` | Metric threshold, **P1**: p95 on a 2-min rate above 150 ms, held for 1 min (the API rejects free-form `dynamicDuration`; the window is the 1-minute enum); entity label `team=cms-platform` (also `service`, `cluster`, `workshop`); the description carries the owner and the dashboard URL; no destination of its own: label `routing.team=cms-platform` sends its Case through router `cms-platform` to `slack-prod-alerts`; notifies on triggered and resolved; re-notifies every 10 min |
 
 **Alert query** (APM span metrics):
 
@@ -178,7 +178,7 @@ Earlier run: P1 fired 2 min after the cut (G1 ✓). Reset ≈ 30 s, but the aler
 1. Docker Desktop and floci up; Argo CD Synced/Healthy; k6 and the browsers running.
    Node memory below ~10 GiB (`kubectl top node`): Sam's scale-out adds ~0.8 GiB and kubelet evicts near 12 GiB. vLLM (namespace `llm`) needs ~5 GiB even idle and does not fit beside the demo: keep it at 0 (`kubectl -n llm scale deploy/vllm --replicas=0`).
 2. Dashboard: p95 < 150 ms for the last 15 min, error ratio 0, cms-backend 2/2, Postgres CPU well below its limit.
-3. The alert is enabled and OK; the Slack channel is open; Olly answers a trivial question in a thread.
+3. Both P1 alerts (p95, cms-postgres FATAL) are enabled and OK, and the Coralogix objects match Git (`make tf ENV=local STACK=observability CMD=plan` prints `No changes`); the Slack channel is open; Olly answers a trivial question in a thread.
    Annotations: the preflight check in `workshop/demo/README.md` prints `annotation sent (2xx)`, not 403.
 4. Claude Code: `cx` query, `kubectl get pods -n cms-demo` and the Argo CD application read all work with the read-only identities.
 5. The local mirror sits at its baseline tag, and `make local-sync` will not run during the demo.

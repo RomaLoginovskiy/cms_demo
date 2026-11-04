@@ -48,7 +48,7 @@ All images are built for `linux/arm64` (Graviton nodes, Apple Silicon host) and 
 ### cms-frontend
 
 - **Replicas**: 1 (`local`), 2 (`dev`), with a PDB `minAvailable: 1` and zone topology spread.
-- **Config**: `BACKEND_HOST=cms-backend:8080`; `CORALOGIX_RUM_DOMAIN=eu1.coralogix.com`, `CORALOGIX_APPLICATION=cms-demo`, `CORALOGIX_SUBSYSTEM=cms-frontend`, `CORALOGIX_ORGANIZATION_NAME`, `CORALOGIX_ENVIRONMENT` (overlay), `CORALOGIX_APP_VERSION` (image tag), sampling/recording flags, `CORALOGIX_OTLP_TRACES_URL=/v1/traces`.
+- **Config**: `BACKEND_HOST=cms-backend:8080`; `CORALOGIX_RUM_DOMAIN` from Secret `rum-keys` (property `DOMAIN` of `cms-demo/<env>/coralogix-rum`, e.g. `eu1.coralogix.com`), `CORALOGIX_APPLICATION=cms-demo`, `CORALOGIX_SUBSYSTEM=cms-frontend`, `CORALOGIX_ORGANIZATION_NAME`, `CORALOGIX_ENVIRONMENT` (overlay), `CORALOGIX_APP_VERSION` (image tag), sampling/recording flags, `CORALOGIX_OTLP_TRACES_URL=/v1/traces`.
 - **Secret**: `CORALOGIX_RUM_PUBLIC_KEY` ← ExternalSecret `rum-keys` from `cms-demo/<env>/coralogix-rum` (**fix**: currently hard-coded at `k8s/frontend-deployment.yaml:36`, committed to the public repo). An empty value disables RUM (the SDK checks for it), which is the placeholder.
 - **Probes**: `/health`.
 - **Note**: the entrypoint writes `runtime-env.js` and the nginx config at start, so `readOnlyRootFilesystem` needs emptyDir mounts (hardening backlog).

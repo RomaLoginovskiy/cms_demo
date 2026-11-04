@@ -3,10 +3,17 @@
 # owning team shown in the alert.
 
 locals {
-  api_dashboard_url = "${var.console_url}/dashboards/${coralogix_dashboard.this["api_health"].id}"
+  # Without a console URL the description names the dashboard instead of linking it.
+  api_dashboard = (var.console_url == null
+    ? "'${jsondecode(local.dashboard_json["api_health"]).name}' (Coralogix Dashboards)"
+    : "${var.console_url}/dashboards/${coralogix_dashboard.this["api_health"].id}"
+  )
 
-  alert_routing = "owning team: ${var.owning_team} (routing.team, Cases routed by router ${var.owning_team} to #${var.slack_channel})"
-  alert_footer  = "Dashboard: ${local.api_dashboard_url} · Runbook: spec/components/workshop-scenarios.md, INC-1 (cms_demo repo)."
+  alert_routing = (var.slack == null
+    ? "owning team: ${var.owning_team} (routing.team)"
+    : "owning team: ${var.owning_team} (routing.team, Cases routed by router ${var.owning_team} to #${var.slack.channel})"
+  )
+  alert_footer = "Dashboard: ${local.api_dashboard} · Runbook: spec/components/workshop-scenarios.md, INC-1 (cms_demo repo)."
 
   alert_labels = {
     team           = var.owning_team

@@ -14,7 +14,7 @@ Terraform creates and owns **every AWS resource** and **publishes their coordina
 infra/
   terraform/
     stacks/                     # one root per layer, shared by every environment
-      bootstrap/  global/  infra/  gitops/
+      bootstrap/  global/  infra/  gitops/  observability/
     envs/
       local/                    # backend.hcl + <stack>.tfvars (floci)
       dev/                      # backend.hcl + <stack>.tfvars (AWS)
@@ -36,6 +36,7 @@ Each stack is one root module used by **every** environment: it pins providers, 
 | `stacks/global` | `ecr`, `github-oidc`, `budget` | `<env>/global.tfstate` | CI (`terraform.yml`) |
 | `stacks/infra` | `network`, `eks`, `msk`, `app-config`, `edge-dns` (+ phase 3 modules) | `<env>/infra.tfstate` | CI for `dev` (after GitHub environment approval) |
 | `stacks/gitops` | `gitops-bootstrap` (Helm + Kubernetes providers) | `<env>/gitops.tfstate` | operator from an `admin_cidrs` address (rare) |
+| `stacks/observability` | Coralogix alerts, dashboards and Notification Center routing (Coralogix provider only; [workshop-telemetry-detection.md](workshop-telemetry-detection.md#detection-as-code-stack-observability)) | `<env>/observability.tfstate` | operator (`local` only so far) |
 
 - **Locking**: AWS backends use the S3 lockfile (`use_lockfile = true`, Terraform ≥ 1.10). The floci backend uses bucket `cms-demo-tfstate-local` with DynamoDB table `cms-demo-tflock-local` (floci's documented pattern); spike S7 checks whether the S3 lockfile works on floci, in which case DynamoDB is dropped.
 - **Inter-layer contract**: `gitops` reads `infra` results from SSM parameters ([Outputs contract](#outputs-contract)), not `terraform_remote_state`, so layers stay decoupled and the same parameters feed ESO.

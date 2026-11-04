@@ -1,3 +1,7 @@
+# Nothing here names a particular Coralogix account. Account-specific values (region, console URL,
+# Slack integration, IDs to adopt) come from the operator: for env local, the gitignored
+# infra/local/observability.tfvars (see observability.tfvars.example next to it), which tf.sh adds.
+
 variable "env" {
   description = "Environment: local, dev or prod"
   type        = string
@@ -8,18 +12,25 @@ variable "env" {
   }
 }
 
-variable "coralogix_env" {
-  description = "Coralogix region of the team the environment ships its telemetry to (EU1, US1, ...)"
+variable "coralogix_domain" {
+  description = "Coralogix domain of your team's region (eu1.coralogix.com, us1.coralogix.com, ...). tf.sh sets it from CX_DOMAIN, the one region setting of the whole environment"
   type        = string
+  default     = "eu1.coralogix.com"
+
+  validation {
+    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]+$", var.coralogix_domain)) && !can(regex("^(https?:|api\\.|ingress\\.)", var.coralogix_domain))
+    error_message = "coralogix_domain is the bare region domain, such as eu1.coralogix.com (no scheme, no api. or ingress. prefix)."
+  }
 }
 
 variable "console_url" {
-  description = "Console URL of that team, for the dashboard link in alert descriptions"
+  description = "Console URL of your team (https://<team>.coralogix.com, https://<team>.app.<region domain>), for dashboard links in alert descriptions; null leaves the links out"
   type        = string
+  default     = null
 
   validation {
-    condition     = can(regex("^https://[^/]+$", var.console_url))
-    error_message = "console_url must be https://<team>.coralogix.<tld> without a trailing slash."
+    condition     = var.console_url == null || can(regex("^https://[^/]+$", var.console_url))
+    error_message = "console_url must be https://<host> without a path or trailing slash."
   }
 }
 
@@ -34,23 +45,32 @@ variable "owning_team" {
   default     = "cms-platform"
 }
 
-variable "slack_integration_id" {
-  description = "Coralogix Slack integration (one installed Slack workspace) the connector posts through"
-  type        = string
+variable "slack" {
+  description = <<-EOT
+    Slack destination for the team's Cases: integration_id is the Coralogix Slack integration (one
+    installed Slack workspace: Integrations → Slack, or the integrationId field of an existing Slack
+    connector). null creates no connector and no router; the alerts still open Cases in Coralogix.
+  EOT
+  type = object({
+    integration_id = string
+    channel        = optional(string, "production-alerts")
+    connector_name = optional(string, "slack-prod-alerts")
+  })
+  default = null
 }
 
-variable "slack_channel" {
-  description = "Slack channel, without #, that receives the team's Cases"
+variable "rum_folder_name" {
+  description = "Dashboards folder for the two RUM dashboards (folder names are unique in a team)"
   type        = string
-  default     = "production-alerts"
+  default     = "cms-demo RUM"
 }
 
 variable "adopt" {
   description = <<-EOT
-    IDs of objects that already exist in the Coralogix team. imports.tf adopts them instead of
-    creating duplicates; once they are in state the imports are no-ops, and after a lost state
-    (make local-nuke wipes floci's state bucket) the next apply adopts them again. Empty for a
-    team that has none of them yet.
+    IDs of objects that already exist in your team. imports.tf adopts them instead of creating
+    duplicates; once they are in state the imports are no-ops, and after a lost state (make
+    local-nuke wipes floci's state bucket) the next apply adopts them again. Leave empty on a first
+    apply; afterwards copy the IDs from `terraform output adopt_ids` to keep a lost state harmless.
   EOT
   type = object({
     slack_connector = optional(string)

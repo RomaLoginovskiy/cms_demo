@@ -256,6 +256,8 @@ infra/local/.aws/
 infra/local/.kubeconfig
 infra/local/.env.local
 infra/local/.secrets.env
+# Per-operator values for env local (Coralogix team, Slack, IDs): infra/local/<stack>.tfvars
+infra/local/*.tfvars
 infra/local/.last-image-tag
 infra/local/.git-mirror-password
 infra/local/.incident/

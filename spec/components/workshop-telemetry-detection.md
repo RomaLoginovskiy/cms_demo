@@ -303,11 +303,14 @@ Participants get D1–D4 read-only. The facilitator also uses `make lab-status`.
 | Item | Value |
 |---|---|
 | Root | `infra/terraform/stacks/observability`; state key `<env>/observability.tfstate` |
-| Provider | `coralogix/coralogix` (pinned), domain EU1 |
-| Key | `cms-demo/<env>/coralogix-admin` in Secrets Manager. CI reads it via the OIDC apply role; the operator uses `make tf` with the same lookup. Never stored in GitHub secrets or tfvars |
-| Inputs | `cluster_name`, `environment`, service names, thresholds, `workshop_alerts` (true only for `lab` and workshop `local`) |
-| Resources | alerts A1–A13, SLO-1–3, dashboards D1–D4, notification routing, parsing rule for CloudTrail |
-| Naming | `[<env>] <alert name>`, so the `local` and `lab` copies do not collide in one Coralogix team |
+| Provider | `coralogix/coralogix` `~> 3.23`, `domain` from `coralogix_domain`, which `tf.sh` sets from `CX_DOMAIN` (the environment's one region setting, default `eu1.coralogix.com`). Terraform ≥ 1.7 (`import` with `for_each`) |
+| Key | Target: `cms-demo/<env>/coralogix-admin` in Secrets Manager, read by the OIDC apply role; never in GitHub secrets or tfvars. **Today** (local only): environment variable `CORALOGIX_API_KEY`, which `tf.sh` reads from `infra/local/.secrets.env` for env `local`. The Secrets Manager lookup comes with the first AWS environment |
+| Inputs | Committed (`envs/<env>/observability.tfvars`): `env`, `cluster_name`; nothing that names a Coralogix account. Per operator (env `local`: gitignored `infra/local/observability.tfvars`, from `observability.tfvars.example`, added by `tf.sh`): optional `console_url` (dashboard links in alert descriptions), optional `slack` (no connector or router without it), `rum_folder_name`, `adopt`. Later: thresholds, `workshop_alerts` |
+| Resources | **Implemented 2026-11-03** for the incident demo: the two P1 alerts (API p95, cms-postgres FATAL), dashboards `cms-demo · API health` and the two RUM dashboards with their folder, and, when `slack` is set, a Slack connector (default name `slack-prod-alerts`) and router `cms-platform`. **Later**: alerts A1–A13, SLO-1–3, dashboards D1–D4, parsing rule for CloudTrail |
+| Adoption | `adopt` (per operator) lists the IDs of objects that already exist in that team; `imports.tf` imports them, and `terraform output adopt_ids` prints the value after a first apply. Coralogix names are not unique, so without it a lost state (floci's bucket goes with `make local-nuke`) would duplicate every object; with it the next apply re-adopts them |
+| Dashboards | JSON exported from Coralogix (`cx dashboards get <id>`, the `dashboard` object without `id` and `folderId`) in `stacks/observability/dashboards/`; the cluster name is substituted |
+| Tests | `tests/observability.tftest.hcl` with a mocked provider, run by `make tf-validate` (routing labels match the router, links, cluster substitution, folders) |
+| Naming | `[<cluster>] <alert name>`, so the `local` and `lab` copies do not collide in one Coralogix team |
 
 ## Query cookbook (indicative)
 

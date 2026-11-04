@@ -100,7 +100,7 @@ Exit codes: 0 for sent, skipped or rejected (rejections are warnings, `::warning
    2. apply `gitops` (the cluster Secret gains `irsa_role_arn_eso_argocd`);
    3. write the key:
       ```bash
-      aws secretsmanager put-secret-value --secret-id cms-demo/dev/coralogix-ops-events --secret-string '{"API_KEY":"..."}'
+      aws secretsmanager put-secret-value --secret-id cms-demo/dev/coralogix-ops-events --secret-string '{"API_KEY":"...","DOMAIN":"eu1.coralogix.com"}'
       ```
    For operator Terraform runs, export `CX_OPS_EVENTS_API_KEY`.
 4. floci: put `CX_OPS_EVENTS_API_KEY` in `infra/local/.secrets.env` and run `make local-secrets`. `tf.sh` reads the same line for `env=local`. On an existing local cluster, run `make local-apply local-gitops` first.
@@ -116,10 +116,16 @@ Exit codes: 0 for sent, skipped or rejected (rejections are warnings, `::warning
   - multi-source and single-source platform apps; the root app; a platform error.
 
   All rendered bodies are valid JSON with RFC 3339 timestamps.
-- **Live** (pending a key):
-  - `source default/ops.events | limit 10` shows the events; confirm field paths there.
-  - APM → `demo-cms-api` → Annotations shows Deployments for environment `dev`.
-  - On a failure, check `kubectl -n argocd logs deploy/argocd-notifications-controller`:
-    - `403`: wrong key preset;
-    - `401`: placeholder key;
-    - template errors name the template.
+- **Live, 2026-11-04** (team watcher, eu1, environment `local`; events labelled `TEST … test-1793780363`): `ops-event.sh` sent a `custom` event, a GitHub-shaped `cd` event (simulated Actions context, run id 0) and a `terraform` event. All three got HTTP 200 and were in `default/ops.events` about 2.5 minutes later. Earlier Argo CD and `tf.sh` events from floci are there too.
+- **Stored shape** (DataPrime paths):
+  - `additional` keys are flattened into attributes: `$d.attributes.category`, `$d.attributes.vcsRevision`, `$d.attributes.imageTag`;
+  - the service and environment are `$d.attributes.service.name` and `$d.attributes.environment`;
+  - `$d.eventType` is `cdEvent` or `customEvent`; `$d.description`;
+  - CD fields are under `$d.cdEvent.*`, with enum prefixes stripped and lower-cased: `system == 'argocd'`/`'github'`, `pipeline.task.type == 'deploy'`/`'build'`, `pipeline.result.status == 'success'`.
+
+  Example: `source default/ops.events | filter $d.attributes.vcsRevision == '<sha>'`. The `cx` CLI needs a default source next to the query: `cx dataprime query "source default/ops.events" -s logs --start now-1h`.
+- **Still to check**: APM → `demo-cms-api` → Annotations shows Deployments for environment `dev` (needs the AWS `dev` cluster).
+- **On a failure**, check `kubectl -n argocd logs deploy/argocd-notifications-controller`:
+  - `403` (empty body): invalid key or wrong preset;
+  - `401`: placeholder key;
+  - template errors name the template.

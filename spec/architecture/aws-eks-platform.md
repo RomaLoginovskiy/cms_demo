@@ -141,7 +141,7 @@ Rules:
 
 ## 10. Observability on EKS
 
-- Coralogix `otel-integration` in `observability`, `global.domain: eu1.coralogix.com`, `global.clusterName` = cluster name (`cms-dev`), values from `coralogix/values.yaml` split into common + per-environment files.
+- Coralogix `otel-integration` in `observability`, `global.domain: ${env:CORALOGIX_DOMAIN}` (the region comes with the ingest key: property `DOMAIN` of `cms-demo/<env>/coralogix-ingest`), `global.clusterName` = cluster name (`cms-dev`), values from `coralogix/values.yaml` split into common + per-environment files.
 - The Docker Desktop post-renderer (`mountPropagation: HostToContainer` → `None`) is applied **only** in the `local` overlay as Kustomize patches (spike S6); EKS nodes support `HostToContainer`.
 - Agent hostPort 4318 must be present in the rendered DaemonSet (ADR-016 follow-up); VPC CNI supports hostPort through its portmap plugin.
 - With IMDS hop limit 1, the `ec2`/`eks` resource detectors cannot reach IMDS from pod network namespaces: keep `resourceDetection` limited to Kubernetes attributes, or accept hostNetwork for the agent. Decided in spike S6.

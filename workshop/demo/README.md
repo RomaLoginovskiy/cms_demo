@@ -4,7 +4,8 @@ Runbook for the live demo in [the scope doc](../../spec/architecture/incident-de
 
 | Path | What |
 |---|---|
-| `coralogix/` | alert, dashboard, Slack connector and router ([README](coralogix/README.md)) |
+| `../../infra/terraform/stacks/observability/` | Coralogix objects as Terraform, applied to your own Coralogix team: P1 alerts "[cms-local] CMS API p95 latency > 150 ms" and "[cms-local] cms-postgres FATAL errors > 10 in 5 min", dashboard "cms-demo · API health (cms-local)" and the two RUM dashboards; optionally a Slack connector and router `cms-platform` |
+| `coralogix/` | superseded: the `cx` script and JSON that first created those objects ([README](coralogix/README.md)) |
 | `scripts/` | scenario scripts; they commit as personas to branch `local` of the local Git mirror, which Argo CD tracks |
 | `load/api.js` | k6 open-model API load |
 | `../../deploy/platform/coralogix-otel/overlays/local/aws-signal-emulator/` | emulated AWS CloudWatch metrics (EC2, EBS) from real node signals; dashboard row "AWS (emulated on floci)" |
@@ -23,9 +24,35 @@ workshop/demo/scripts/seed.sh                    # 300 text media + tags in cms-
 workshop/demo/scripts/baseline.sh                # tag the mirror tip as demo-baseline
 workshop/demo/scripts/investigator.sh            # demo-viewer kubeconfig + GitOps history for Claude Code
 workshop/demo/scripts/load.sh start 40           # k6 at 40 req/s against http://localhost:8080/api
+make tf ENV=local STACK=observability CMD=apply  # Coralogix alerts, dashboards, Slack routing: set up first (below)
 ```
 
 Do not run `make local-sync` again during rehearsals or the demo: it replaces branch `local` with a working-tree snapshot. To change the baseline, publish, then re-run `baseline.sh`.
+
+### Coralogix alerts, dashboards and routing (Terraform)
+
+The alerts, dashboards and Notification Center routing live in the Terraform stack [`observability`](../../infra/terraform/stacks/observability/). Nothing in Git names a Coralogix account: each presenter applies it to their own team, and their team's values stay in a gitignored file. Change the objects in code, not in the UI: a UI edit to an alert, the connector or the router shows up as drift in the next plan, and the apply reverts it. For a dashboard, edit it in the UI, then copy the export into `infra/terraform/stacks/observability/dashboards/` (see `dashboards.tf`).
+
+Needs:
+
+- **Terraform 1.7 or later** (`brew upgrade hashicorp/tap/terraform`; 1.6 is refused).
+- **`CORALOGIX_API_KEY`** in `infra/local/.secrets.env` (or exported): an API key of your team with the Alerts, Dashboards and Notification Center permissions.
+- **Your region** as `CX_DOMAIN` in `infra/local/.secrets.env` (default `eu1.coralogix.com`), next to that team's telemetry keys, then `make local-secrets`. The same setting drives the collectors, RUM, Argo CD annotations and this stack ("Coralogix region" in [infra/README.md](../../infra/README.md#local-environment-floci)).
+- **`infra/local/observability.tfvars`**, copied from [`observability.tfvars.example`](../../infra/local/observability.tfvars.example): optionally your console URL (dashboard links in the alerts) and your Slack integration and channel (`slack`; without it the alerts open Cases but nothing posts to Slack). The Coralogix Slack app must be a member of that channel.
+- **`cx` CLI** whose default profile is the same team: `inject.sh`, Sam's watcher (`oncall.sh`) and the preflight read the alert state with `cx alerts list`.
+
+First apply in a new team:
+
+```bash
+cp infra/local/observability.tfvars.example infra/local/observability.tfvars   # then edit it
+make tf ENV=local STACK=observability CMD=plan                                 # 6 to add (8 with Slack)
+make tf ENV=local STACK=observability CMD=apply
+make tf ENV=local STACK=observability CMD="output adopt_ids"                   # prints { ... } with the new IDs
+```
+
+Paste the printed `{ … }` block into `infra/local/observability.tfvars` as `adopt = { … }`. Copy only the block: on floci a Terraform deprecation warning about `dynamodb_table` follows it.
+
+Afterwards the apply is safe to repeat: `CMD=plan` should print `No changes`. After `make local-nuke` the state is gone with floci but the objects stay in Coralogix; with the IDs in `adopt` the next apply adopts them again and creates nothing. If a plan wants to **create** an alert or a dashboard that already exists in your team, stop: its ID is missing from `adopt`, and an apply would add a duplicate.
 
 ## Run
 

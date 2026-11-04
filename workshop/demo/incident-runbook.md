@@ -2,6 +2,8 @@
 
 How to run the "right-sized into an outage" incident on the local floci cluster `cms-local`, and how to end it cleanly. The design and calibration are in [the scope doc](../../spec/architecture/incident-demo-scope-2026-11-03.md); the one-time setup is in [README.md](README.md).
 
+Coralogix is your own team (the one in `infra/local/observability.tfvars` and the cx default profile). Slack `#production-alerts` below stands for the channel in `slack.channel` of that file; without Slack routing, watch the alert and its Case in Coralogix instead.
+
 Run every command from the repository root. `kubectl` commands need:
 
 ```bash
@@ -15,6 +17,10 @@ export KUBECONFIG=infra/local/.kubeconfig
 3. **T+2.5–7 min, Sam's on-call commit** (automatic): once the alert has been firing on two checks 30 s apart, Sam scales cms-backend 2 → 8 ("absorb latency, INC-1103"). Six new pods each open a pool of up to 20 connections against `max_connections=50`: errors jump (`53300 too many clients already`) and latency gets worse.
 4. **Fix** (`fix.sh`, or the revert Claude Code proposes): one commit reverts both changes. Recovery takes about 1 minute; the alert resolves 6–8 minutes later.
 
+A second P1, "[cms-local] cms-postgres FATAL errors > 10 in 5 min", pages the same channel when Postgres logs more than 10 FATAL errors in 5 minutes (`too many clients already`, shutdowns, terminated connections). It is not part of the script: on 2026-11-03 it fired in the 11:31 UTC run and stayed quiet in the four afternoon rehearsals. If it pages, use it: it points straight at the connection storm.
+
+Both alerts, the dashboard and the Slack routing (Cases of team `cms-platform` → router `cms-platform` → connector `slack-prod-alerts` → `#production-alerts`) are Terraform: [`infra/terraform/stacks/observability`](../../infra/terraform/stacks/observability/).
+
 Each push also sends a Coralogix annotation on `demo-cms-api` with the commit's author and subject (needs a valid OpsEvents key, see Preflight), and Argo CD adds a Deployment marker once the sync settles.
 
 ## Preflight (T−30 min)
@@ -25,13 +31,14 @@ Each push also sends a Coralogix annotation on `demo-cms-api` with the commit's 
 | 2 | Load running | `workshop/demo/scripts/load.sh status` | `cms-incident-k6 Up …`; if not: `workshop/demo/scripts/load.sh start 40` |
 | 3 | Baseline state | `workshop/demo/scripts/watch.sh 1` | `pg limit=2`, `backend=2/2`, probe under ~100 ms |
 | 4 | No earlier run applied | `ls infra/local/.incident/injected-at` | "No such file" |
-| 5 | Alert quiet | `cx alerts list --name "CMS API p95 latency" -o json \| grep -o 'ALERT_DEF_STATUS_[A-Z_]*'` | `ALERT_DEF_STATUS_OK` |
+| 5 | Alerts quiet | `cx alerts list --name "cms-local" -o json \| grep -o 'ALERT_DEF_STATUS_[A-Z_]*'` | `ALERT_DEF_STATUS_OK` twice (p95 and cms-postgres FATAL) |
+| 5b | Coralogix config as in Git | `make tf ENV=local STACK=observability CMD=plan` | `No changes`. Drift (someone edited the alert, dashboard or router in the UI): `CMD=apply` restores the code's version. Needs Terraform ≥ 1.7 and `CORALOGIX_API_KEY` ([README](README.md#coralogix-alerts-dashboards-and-routing-terraform)) |
 | 6 | vLLM off | `kubectl -n llm scale deploy/vllm --replicas=0` | its CPU use shifts the calibrated knee |
 | 7 | Node memory | `kubectl top node` | below ~12 GiB |
 | 7b | Mac disk | `df -h /System/Volumes/Data` | 20 GiB or more free; a full disk crashes Docker Desktop and the whole cluster with it |
 | 8 | Annotations | `( set -a; . infra/local/.secrets.env; set +a; infra/scripts/ops-event.sh custom --description "preflight annotation check" --environment local --service demo-cms-api )` | `annotation sent (2xx)`, not 403 |
 | 9 | Claude Code access | `KUBECONFIG=infra/local/.incident/investigator.kubeconfig kubectl get pods -n cms-demo` | pods listed; if the token expired (48 h): `workshop/demo/scripts/investigator.sh` |
-| 10 | Screens | Slack `#production-alerts`, the [dashboard](https://watcher.coralogix.com/dashboards/d4IsawufLdsXdj6trjkyx), a terminal for Claude Code | open |
+| 10 | Screens | Slack `#production-alerts`, the API health dashboard (`make tf ENV=local STACK=observability CMD="output dashboard_urls"`), a terminal for Claude Code | open |
 
 Do not run `make local-sync` (or let another session run it) between preflight and the end of the demo: it replaces the GitOps branch the scenario commits to.
 
@@ -99,6 +106,9 @@ To abort mid-incident without the fix narrative, run `reset.sh` directly: it sto
 | `inject.sh`: "not at demo-baseline … run reset.sh" | an earlier run is still applied | `workshop/demo/scripts/reset.sh` |
 | `reset.sh`: "newer working-tree snapshot … resetting would undo it" | a `make local-sync` during the run already replaced the branch | `workshop/demo/scripts/baseline.sh` |
 | No Slack page | alert still firing from an earlier run, or Slack delivery | check the alert in Coralogix; narrate from the dashboard |
+| No Slack page although the alert fires in Coralogix | routing changed in the UI (router target, connector channel or alert labels) | `make tf ENV=local STACK=observability CMD=plan` shows the drift; `CMD=apply` restores it |
+| `make tf … STACK=observability`: "Unsupported Terraform Core version" | Terraform older than 1.7 | `brew upgrade hashicorp/tap/terraform` |
+| `make tf … STACK=observability CMD=plan` wants to **create** alerts or dashboards | state lost and an ID missing from `adopt` in `infra/local/observability.tfvars` | do not apply (it would duplicate them); add the missing ID, plan again |
 | Total outage instead of slowdown (probe at the 10 s cap from the start) | laptop CPU busy (vLLM, builds) | `reset.sh`, free the CPU, retry; or `inject.sh 70m` |
 | Sam never scales | alert not firing yet | the 420 s timer scales anyway; or skip the beat |
 | `localhost:8080` refuses connections, cluster API down, floci containers exited | Docker Desktop restarted | `workshop/demo/scripts/recover.sh` (about 5 min) |

@@ -1,16 +1,16 @@
 # Adopts objects that already exist in the team (var.adopt) instead of creating duplicates: Coralogix
 # names are not unique, so a create after a lost state would add a second copy of each. "x[*]" is
-# [] for null and [x] otherwise.
+# [] for null and [x] otherwise. Copy the IDs from `terraform output adopt_ids` after a first apply.
 
 import {
   for_each = toset(var.adopt.slack_connector[*])
-  to       = coralogix_connector.slack
+  to       = coralogix_connector.slack[0]
   id       = each.value
 }
 
 import {
   for_each = toset(var.adopt.router[*])
-  to       = coralogix_global_router.team
+  to       = coralogix_global_router.team[0]
   id       = each.value
 }
 
