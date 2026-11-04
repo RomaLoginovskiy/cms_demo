@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the six images for the host architecture and pushes them to floci ECR (path-style URIs).
+# Builds the seven images for the host architecture and pushes them to floci ECR (path-style URIs).
 # Tags are immutable: an existing tag is skipped, never re-pushed. Prints the tag on stdout.
 . "$(dirname "$0")/lib.sh"
 use_identity
@@ -34,6 +34,7 @@ while read -r service context dockerfile; do
 done <<LIST
 cms-backend backend backend/Dockerfile
 media-worker backend backend/DemoCms.MediaWorker/Dockerfile
+cms-agent backend backend/DemoCms.Agent/Dockerfile
 cms-frontend frontend frontend/Dockerfile
 canvas-backend canvas-backend canvas-backend/Dockerfile
 canvas-frontend canvas-frontend canvas-frontend/Dockerfile

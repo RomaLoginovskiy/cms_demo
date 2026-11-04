@@ -1,0 +1,15 @@
+# cms-backend on cms-postgres. Pool 20 per pod against max_connections=50: 2 replicas fit, 8 do not.
+# All replicas share the single node, so the ReadWriteOnce uploads volume still attaches.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-backend
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: cms-backend
+          env:
+            - name: ConnectionStrings__DefaultConnection
+              value: "Host=cms-postgres;Port=5432;Database=cms;Username=cms;Maximum Pool Size=20;Timeout=15;Command Timeout=30"

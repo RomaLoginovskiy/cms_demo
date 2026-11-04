@@ -32,8 +32,317 @@ configs:
 dex:
   enabled: false
 
+# Coralogix annotations (ADR-025, spec/components/coralogix-annotations.md). Every sync of cms-demo
+# becomes a deployment event (cdEvent) per APM service; every sync of a platform or root app becomes a
+# configuration-change event (customEvent). One event per synced revision and outcome (oncePer).
+# The key (OpsEvents preset: it can only post events) comes from ExternalSecret
+# argocd-notifications-secret in deploy/platform/argo-cd/notifications. A failed template or delivery
+# is logged by argocd-notifications-controller and never affects the sync.
 notifications:
-  enabled: false
+  enabled: true
+  secret:
+    create: false
+  context:
+    # values-<env>.yaml; must equal the deployment.environment.name the workloads report.
+    environment: unset
+    # Images are built from this repository; an image tag sha-<12> links to its commit here, also
+    # when Argo CD reads the local Git mirror.
+    sourceRepoUrl: https://github.com/RomaLoginovskiy/cms_demo
+  resources:
+    requests: { cpu: 10m, memory: 64Mi }
+    limits: { memory: 128Mi }
+  # One webhook service per APM service: a trigger's templates merge into one notification keyed by
+  # webhook name, so deploy templates sharing a name overwrite each other and only the last is sent.
+  notifiers:
+    service.webhook.coralogix-ops-events: &coralogix-ops-events |
+      url: https://api.$coralogix-domain/v1/ops-events
+      headers:
+        - name: Authorization
+          value: Bearer $coralogix-ops-events-token
+        - name: Content-Type
+          value: application/json
+    service.webhook.coralogix-ops-events-cms-api: *coralogix-ops-events
+    service.webhook.coralogix-ops-events-media-worker: *coralogix-ops-events
+    service.webhook.coralogix-ops-events-canvas-api: *coralogix-ops-events
+  subscriptions:
+    - recipients: [coralogix-ops-events]
+      triggers: [coralogix-platform]
+    - recipients: [coralogix-ops-events-cms-api, coralogix-ops-events-media-worker, coralogix-ops-events-canvas-api]
+      triggers: [coralogix-cms-demo]
+  triggers:
+    # Healthy uses the catalog on-deployed timing check, so a stale Healthy status right after the sync
+    # does not count. A rollout that ends Degraded is reported as a failed deployment.
+    trigger.coralogix-cms-demo: |
+      - description: cms-demo synced and healthy
+        when: app.spec.project == 'cms-demo' and app.status.operationState?.phase in ['Succeeded'] and app.status.health.status == 'Healthy' and (!time.Parse(app.status.health.lastTransitionTime).Add(1 * time.Minute).Before(time.Parse(app.status.operationState.finishedAt)) or time.Parse(app.status.health.lastTransitionTime).Before(time.Parse(app.status.operationState.startedAt)))
+        oncePer: app.status.operationState?.syncResult?.revision
+        send: [coralogix-deploy-cms-api, coralogix-deploy-media-worker, coralogix-deploy-canvas-api]
+      - description: cms-demo synced but degraded
+        when: app.spec.project == 'cms-demo' and app.status.operationState?.phase in ['Succeeded'] and app.status.health.status == 'Degraded'
+        oncePer: app.status.operationState?.syncResult?.revision
+        send: [coralogix-deploy-cms-api, coralogix-deploy-media-worker, coralogix-deploy-canvas-api]
+      - description: cms-demo sync failed
+        when: app.spec.project == 'cms-demo' and app.status.operationState?.phase in ['Error', 'Failed']
+        oncePer: app.status.operationState?.syncResult?.revision ?? app.status.operationState?.operation?.sync?.revision
+        send: [coralogix-deploy-cms-api, coralogix-deploy-media-worker, coralogix-deploy-canvas-api]
+    # Platform add-ons and the root app (ApplicationSets). Multi-source apps key on all revisions.
+    trigger.coralogix-platform: |
+      - description: platform or root app synced
+        when: app.spec.project in ['platform', 'default'] and app.status.operationState?.phase in ['Succeeded']
+        oncePer: app.status.operationState?.syncResult?.revisions ?? app.status.operationState?.syncResult?.revision
+        send: [coralogix-config-change]
+      - description: platform or root app sync failed
+        when: app.spec.project in ['platform', 'default'] and app.status.operationState?.phase in ['Error', 'Failed']
+        oncePer: app.status.operationState?.syncResult?.revisions ?? app.status.operationState?.syncResult?.revision ?? app.status.operationState?.operation?.sync?.revisions ?? app.status.operationState?.operation?.sync?.revision
+        send: [coralogix-config-change]
+  # Per-service deployment templates differ only in their first line ($service = APM service.name,
+  # $image = image name in the overlay).
+  templates:
+    template.coralogix-deploy-cms-api: |
+      webhook:
+        coralogix-ops-events-cms-api:
+          method: POST
+          body: |
+            {{- $service := "demo-cms-api" }}{{ $image := "cms-backend" -}}
+            {{- $op := .app.status.operationState -}}
+            {{- $phase := $op.phase | default "" -}}
+            {{- $health := .app.status.health.status | default "" -}}
+            {{- $rev := "" -}}
+            {{- with $op.syncResult }}{{ $rev = .revision | default "" }}{{ end -}}
+            {{- if not $rev }}{{ with $op.operation }}{{ with .sync }}{{ $rev = .revision | default "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $tag := "" -}}
+            {{- with .app.status.summary }}{{ range .images }}{{ if contains (printf "/%s:" $image) . }}{{ $tag = regexReplaceAll "^.*:" . "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $src := regexFind "^sha-[0-9a-f]{12}" $tag | trimPrefix "sha-" -}}
+            {{- $status := "PIPELINE_RESULT_STATUS_FAILURE" -}}
+            {{- if eq $phase "Error" }}{{ $status = "PIPELINE_RESULT_STATUS_ERROR" }}{{ end -}}
+            {{- if and (eq $phase "Succeeded") (eq $health "Healthy") }}{{ $status = "PIPELINE_RESULT_STATUS_SUCCESS" }}{{ end -}}
+            {{- $outcome := "deployed" -}}
+            {{- if ne $phase "Succeeded" }}{{ $outcome = "failed to sync" }}{{ else if ne $health "Healthy" }}{{ $outcome = printf "deployed (%s)" (lower $health) }}{{ end -}}
+            {{- $repo := .app.spec.source.repoURL -}}
+            {{- $repoHTTPS := call .repo.RepoURLToHTTPS $repo | trimSuffix ".git" -}}
+            {{- $commit := dict -}}
+            {{- if $rev }}{{ $commit = call .repo.GetCommitMetadata $rev }}{{ end -}}
+            {
+              "opsEvent": {
+                "timestamp": {{ $op.finishedAt | default (dateInZone "2006-01-02T15:04:05Z" now "UTC") | toJson }},
+                "description": {{ printf "%s %s %s to %s" $service ($tag | default "(unknown tag)") $outcome .context.environment | toJson }},
+                "attributes": {
+                  "service": {"name": {{ $service | toJson }}},
+                  "environment": {{ .context.environment | toJson }},
+                  "additional": {
+                    "category": "deployment",
+                    "origin": "argocd",
+                    "argocdApp": {{ .app.metadata.name | toJson }},
+                    "syncPhase": {{ $phase | toJson }},
+                    "health": {{ $health | toJson }},
+                    "imageTag": {{ $tag | toJson }},
+                    "vcsRepository": {{ $repoHTTPS | toJson }},
+                    "vcsRef": {{ .app.spec.source.targetRevision | toJson }},
+                    "vcsRevision": {{ $rev | toJson }},
+                    "commitAuthor": {{ $commit.Author | default "" | toJson }},
+                    "commitSubject": {{ $commit.Message | default "" | splitList "\n" | first | trunc 200 | toJson }},
+                    "sourceRevision": {{ $src | toJson }},
+                    "sourceCommitUrl": {{ if $src }}{{ printf "%s/commit/%s" .context.sourceRepoUrl $src | toJson }}{{ else }}""{{ end }}
+                  }
+                },
+                "cdEvent": {
+                  "system": "CD_SYSTEM_ARGOCD",
+                  "pipeline": {
+                    "name": {{ .app.metadata.name | toJson }},
+                    "run": {"id": {{ $rev | toJson }}, "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }}},
+                    "result": {"status": "{{ $status }}"},
+                    "task": {"name": "sync", "type": "PIPELINE_TASK_TYPE_DEPLOY"}
+                  },
+                  "vcs": {
+                    "system": "VCS_SYSTEM_GITHUB",
+                    "type": "VCS_REF_TYPE_BRANCH",
+                    "repository": {"name": {{ call .repo.FullNameByRepoURL $repo | toJson }}, "url": {{ $repoHTTPS | toJson }}},
+                    "ref": {"head": {"name": {{ .app.spec.source.targetRevision | toJson }}, "revision": {{ $rev | toJson }}}}
+                  }
+                }
+              }
+            }
+    template.coralogix-deploy-media-worker: |
+      webhook:
+        coralogix-ops-events-media-worker:
+          method: POST
+          body: |
+            {{- $service := "demo-cms-media-worker" }}{{ $image := "media-worker" -}}
+            {{- $op := .app.status.operationState -}}
+            {{- $phase := $op.phase | default "" -}}
+            {{- $health := .app.status.health.status | default "" -}}
+            {{- $rev := "" -}}
+            {{- with $op.syncResult }}{{ $rev = .revision | default "" }}{{ end -}}
+            {{- if not $rev }}{{ with $op.operation }}{{ with .sync }}{{ $rev = .revision | default "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $tag := "" -}}
+            {{- with .app.status.summary }}{{ range .images }}{{ if contains (printf "/%s:" $image) . }}{{ $tag = regexReplaceAll "^.*:" . "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $src := regexFind "^sha-[0-9a-f]{12}" $tag | trimPrefix "sha-" -}}
+            {{- $status := "PIPELINE_RESULT_STATUS_FAILURE" -}}
+            {{- if eq $phase "Error" }}{{ $status = "PIPELINE_RESULT_STATUS_ERROR" }}{{ end -}}
+            {{- if and (eq $phase "Succeeded") (eq $health "Healthy") }}{{ $status = "PIPELINE_RESULT_STATUS_SUCCESS" }}{{ end -}}
+            {{- $outcome := "deployed" -}}
+            {{- if ne $phase "Succeeded" }}{{ $outcome = "failed to sync" }}{{ else if ne $health "Healthy" }}{{ $outcome = printf "deployed (%s)" (lower $health) }}{{ end -}}
+            {{- $repo := .app.spec.source.repoURL -}}
+            {{- $repoHTTPS := call .repo.RepoURLToHTTPS $repo | trimSuffix ".git" -}}
+            {{- $commit := dict -}}
+            {{- if $rev }}{{ $commit = call .repo.GetCommitMetadata $rev }}{{ end -}}
+            {
+              "opsEvent": {
+                "timestamp": {{ $op.finishedAt | default (dateInZone "2006-01-02T15:04:05Z" now "UTC") | toJson }},
+                "description": {{ printf "%s %s %s to %s" $service ($tag | default "(unknown tag)") $outcome .context.environment | toJson }},
+                "attributes": {
+                  "service": {"name": {{ $service | toJson }}},
+                  "environment": {{ .context.environment | toJson }},
+                  "additional": {
+                    "category": "deployment",
+                    "origin": "argocd",
+                    "argocdApp": {{ .app.metadata.name | toJson }},
+                    "syncPhase": {{ $phase | toJson }},
+                    "health": {{ $health | toJson }},
+                    "imageTag": {{ $tag | toJson }},
+                    "vcsRepository": {{ $repoHTTPS | toJson }},
+                    "vcsRef": {{ .app.spec.source.targetRevision | toJson }},
+                    "vcsRevision": {{ $rev | toJson }},
+                    "commitAuthor": {{ $commit.Author | default "" | toJson }},
+                    "commitSubject": {{ $commit.Message | default "" | splitList "\n" | first | trunc 200 | toJson }},
+                    "sourceRevision": {{ $src | toJson }},
+                    "sourceCommitUrl": {{ if $src }}{{ printf "%s/commit/%s" .context.sourceRepoUrl $src | toJson }}{{ else }}""{{ end }}
+                  }
+                },
+                "cdEvent": {
+                  "system": "CD_SYSTEM_ARGOCD",
+                  "pipeline": {
+                    "name": {{ .app.metadata.name | toJson }},
+                    "run": {"id": {{ $rev | toJson }}, "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }}},
+                    "result": {"status": "{{ $status }}"},
+                    "task": {"name": "sync", "type": "PIPELINE_TASK_TYPE_DEPLOY"}
+                  },
+                  "vcs": {
+                    "system": "VCS_SYSTEM_GITHUB",
+                    "type": "VCS_REF_TYPE_BRANCH",
+                    "repository": {"name": {{ call .repo.FullNameByRepoURL $repo | toJson }}, "url": {{ $repoHTTPS | toJson }}},
+                    "ref": {"head": {"name": {{ .app.spec.source.targetRevision | toJson }}, "revision": {{ $rev | toJson }}}}
+                  }
+                }
+              }
+            }
+    template.coralogix-deploy-canvas-api: |
+      webhook:
+        coralogix-ops-events-canvas-api:
+          method: POST
+          body: |
+            {{- $service := "demo-canvas-api" }}{{ $image := "canvas-backend" -}}
+            {{- $op := .app.status.operationState -}}
+            {{- $phase := $op.phase | default "" -}}
+            {{- $health := .app.status.health.status | default "" -}}
+            {{- $rev := "" -}}
+            {{- with $op.syncResult }}{{ $rev = .revision | default "" }}{{ end -}}
+            {{- if not $rev }}{{ with $op.operation }}{{ with .sync }}{{ $rev = .revision | default "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $tag := "" -}}
+            {{- with .app.status.summary }}{{ range .images }}{{ if contains (printf "/%s:" $image) . }}{{ $tag = regexReplaceAll "^.*:" . "" }}{{ end }}{{ end }}{{ end -}}
+            {{- $src := regexFind "^sha-[0-9a-f]{12}" $tag | trimPrefix "sha-" -}}
+            {{- $status := "PIPELINE_RESULT_STATUS_FAILURE" -}}
+            {{- if eq $phase "Error" }}{{ $status = "PIPELINE_RESULT_STATUS_ERROR" }}{{ end -}}
+            {{- if and (eq $phase "Succeeded") (eq $health "Healthy") }}{{ $status = "PIPELINE_RESULT_STATUS_SUCCESS" }}{{ end -}}
+            {{- $outcome := "deployed" -}}
+            {{- if ne $phase "Succeeded" }}{{ $outcome = "failed to sync" }}{{ else if ne $health "Healthy" }}{{ $outcome = printf "deployed (%s)" (lower $health) }}{{ end -}}
+            {{- $repo := .app.spec.source.repoURL -}}
+            {{- $repoHTTPS := call .repo.RepoURLToHTTPS $repo | trimSuffix ".git" -}}
+            {{- $commit := dict -}}
+            {{- if $rev }}{{ $commit = call .repo.GetCommitMetadata $rev }}{{ end -}}
+            {
+              "opsEvent": {
+                "timestamp": {{ $op.finishedAt | default (dateInZone "2006-01-02T15:04:05Z" now "UTC") | toJson }},
+                "description": {{ printf "%s %s %s to %s" $service ($tag | default "(unknown tag)") $outcome .context.environment | toJson }},
+                "attributes": {
+                  "service": {"name": {{ $service | toJson }}},
+                  "environment": {{ .context.environment | toJson }},
+                  "additional": {
+                    "category": "deployment",
+                    "origin": "argocd",
+                    "argocdApp": {{ .app.metadata.name | toJson }},
+                    "syncPhase": {{ $phase | toJson }},
+                    "health": {{ $health | toJson }},
+                    "imageTag": {{ $tag | toJson }},
+                    "vcsRepository": {{ $repoHTTPS | toJson }},
+                    "vcsRef": {{ .app.spec.source.targetRevision | toJson }},
+                    "vcsRevision": {{ $rev | toJson }},
+                    "commitAuthor": {{ $commit.Author | default "" | toJson }},
+                    "commitSubject": {{ $commit.Message | default "" | splitList "\n" | first | trunc 200 | toJson }},
+                    "sourceRevision": {{ $src | toJson }},
+                    "sourceCommitUrl": {{ if $src }}{{ printf "%s/commit/%s" .context.sourceRepoUrl $src | toJson }}{{ else }}""{{ end }}
+                  }
+                },
+                "cdEvent": {
+                  "system": "CD_SYSTEM_ARGOCD",
+                  "pipeline": {
+                    "name": {{ .app.metadata.name | toJson }},
+                    "run": {"id": {{ $rev | toJson }}, "url": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }}},
+                    "result": {"status": "{{ $status }}"},
+                    "task": {"name": "sync", "type": "PIPELINE_TASK_TYPE_DEPLOY"}
+                  },
+                  "vcs": {
+                    "system": "VCS_SYSTEM_GITHUB",
+                    "type": "VCS_REF_TYPE_BRANCH",
+                    "repository": {"name": {{ call .repo.FullNameByRepoURL $repo | toJson }}, "url": {{ $repoHTTPS | toJson }}},
+                    "ref": {"head": {"name": {{ .app.spec.source.targetRevision | toJson }}, "revision": {{ $rev | toJson }}}}
+                  }
+                }
+              }
+            }
+    template.coralogix-config-change: |
+      webhook:
+        coralogix-ops-events:
+          method: POST
+          body: |
+            {{- $op := .app.status.operationState -}}
+            {{- $phase := $op.phase | default "" -}}
+            {{- $sources := list -}}
+            {{- with .app.spec.source }}{{ $sources = list . }}{{ end -}}
+            {{- with .app.spec.sources }}{{ $sources = . }}{{ end -}}
+            {{- $revs := list -}}
+            {{- with $op.syncResult }}{{ with .revision }}{{ $revs = list . }}{{ end }}{{ with .revisions }}{{ $revs = . }}{{ end }}{{ end -}}
+            {{- if not $revs }}{{ with $op.operation }}{{ with .sync }}{{ with .revision }}{{ $revs = list . }}{{ end }}{{ with .revisions }}{{ $revs = . }}{{ end }}{{ end }}{{ end }}{{ end -}}
+            {{- $gitRepo := "" }}{{ $gitRef := "" }}{{ $gitRev := "" }}{{ $parts := list -}}
+            {{- range $i, $s := $sources -}}
+              {{- $r := "" }}{{ if lt $i (len $revs) }}{{ $r = index $revs $i }}{{ end -}}
+              {{- if $s.chart -}}
+                {{- $parts = append $parts (printf "%s@%s" $s.chart $s.targetRevision) -}}
+              {{- else -}}
+                {{- if not $gitRepo }}{{ $gitRepo = $s.repoURL }}{{ $gitRef = $s.targetRevision }}{{ $gitRev = $r }}{{ end -}}
+                {{- with $s.path }}{{ $parts = append $parts . }}{{ end -}}
+              {{- end -}}
+            {{- end -}}
+            {{- $repoHTTPS := "" }}{{ if $gitRepo }}{{ $repoHTTPS = call .repo.RepoURLToHTTPS $gitRepo | trimSuffix ".git" }}{{ end -}}
+            {{- $commit := dict -}}
+            {{- if and .app.spec.source $gitRev }}{{ $commit = call .repo.GetCommitMetadata $gitRev }}{{ end -}}
+            {{- $outcome := "synced" }}{{ if ne $phase "Succeeded" }}{{ $outcome = printf "sync %s" (lower $phase) }}{{ end -}}
+            {
+              "opsEvent": {
+                "timestamp": {{ $op.finishedAt | default (dateInZone "2006-01-02T15:04:05Z" now "UTC") | toJson }},
+                "description": {{ printf "%s config %s at %s" .app.metadata.name $outcome (trunc 7 $gitRev | default "unknown revision") | toJson }},
+                "attributes": {
+                  "environment": {{ .context.environment | toJson }},
+                  "additional": {
+                    "category": "platform-config",
+                    "origin": "argocd",
+                    "argocdApp": {{ .app.metadata.name | toJson }},
+                    "argocdProject": {{ .app.spec.project | toJson }},
+                    "argocdUrl": {{ printf "%s/applications/%s" .context.argocdUrl .app.metadata.name | toJson }},
+                    "syncPhase": {{ $phase | toJson }},
+                    "health": {{ .app.status.health.status | default "" | toJson }},
+                    "sources": {{ join ", " $parts | toJson }},
+                    "vcsRepository": {{ $repoHTTPS | toJson }},
+                    "vcsRef": {{ $gitRef | toJson }},
+                    "vcsRevision": {{ $gitRev | toJson }},
+                    "commitUrl": {{ if and $repoHTTPS $gitRev }}{{ printf "%s/commit/%s" $repoHTTPS $gitRev | toJson }}{{ else }}""{{ end }},
+                    "commitAuthor": {{ $commit.Author | default "" | toJson }},
+                    "commitSubject": {{ $commit.Message | default "" | splitList "\n" | first | trunc 200 | toJson }}
+                  }
+                },
+                "customEvent": {}
+              }
+            }
 
 controller:
   resources:

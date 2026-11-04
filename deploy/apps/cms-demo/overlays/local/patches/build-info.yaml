@@ -4,3 +4,4 @@ metadata:
   name: build-info
 data:
   APP_VERSION: local
+  DEPLOYMENT_ENVIRONMENT: local

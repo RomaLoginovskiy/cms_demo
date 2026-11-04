@@ -3,6 +3,12 @@ kind: Kustomization
 namespace: observability
 resources:
   - ../../base
+  # Emulated AWS CloudWatch metrics (floci has none); spec: workshop-telemetry-detection.md.
+  - aws-signal-emulator/resources.yaml
+configMapGenerator:
+  - name: aws-signal-emulator
+    files:
+      - emulator.py=aws-signal-emulator/emulator.py
 helmCharts:
   - name: otel-integration
     repo: https://cgx.jfrog.io/artifactory/coralogix-charts-virtual

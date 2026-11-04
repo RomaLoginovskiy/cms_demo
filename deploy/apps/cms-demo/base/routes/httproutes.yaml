@@ -49,6 +49,28 @@ spec:
         - name: cms-backend
           port: 8080
 ---
+# Media agent chat (SSE). Longer prefix than /api, so it wins over the cms-backend route. The request timeout
+# covers a whole streamed answer, which takes minutes on the CPU (local) model.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cms-agent
+spec:
+  parentRefs:
+    - name: cms-edge
+      namespace: edge
+      sectionName: websecure
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/agent
+      timeouts:
+        request: "300s"
+      backendRefs:
+        - name: cms-agent
+          port: 8080
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

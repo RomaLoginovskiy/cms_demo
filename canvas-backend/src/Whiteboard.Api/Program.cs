@@ -27,7 +27,7 @@ var serviceVersion = builder.Configuration.GetValue<string>("OpenTelemetry:Servi
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource
-        .AddService(serviceName, serviceVersion)
+        .AddService(serviceName, serviceVersion: serviceVersion)
         .AddAttributes(new Dictionary<string, object>
         {
             ["environment"] = builder.Environment.EnvironmentName,

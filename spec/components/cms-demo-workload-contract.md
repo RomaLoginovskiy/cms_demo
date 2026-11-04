@@ -42,13 +42,13 @@ All images are built for `linux/arm64` (Graviton nodes, Apple Silicon host) and 
 - **Config (ExternalSecrets)**: `Kafka__BootstrapServers` ← `KAFKA_BOOTSTRAP_SERVERS`; `OpenAI__BaseUrl` ← `LLM_BASE_URL`; `OpenAI__Model` ← `LLM_MODEL`; `OpenAI__ApiKey` ← `OPENAI_API_KEY`.
 - **Probes**: none possible (no HTTP listener); restart-on-crash only.
 - **Egress to**: Kafka, `cms-backend:8080`, the captioning endpoint (Q5), OTLP.
-- **Until Q5**: placeholders (`http://llm.invalid/v1`, model `none`, key `none`) keep the worker running: it consumes and fetches each file, the caption call fails fast (NXDOMAIN), and nothing is written back. `ChatClient` is built at startup, so an empty base URL or key would crash-loop the pod; placeholders are never empty.
+- **Until Q5**: placeholders (`http://llm.invalid/v1`, model `none`, key `none`) keep the worker running: it consumes and fetches each file, but recognises the `.invalid` host (RFC 2606, never resolves), logs one `Captioning disabled` warning at start and skips the caption call, so nothing is written back and no offset is committed. Calling the placeholder made the OpenAI client retry three times per message and log a multi-line stack trace each time (about 13 million log lines a day on floci with the load generator running). Console logs are single-line, so an exception is one log record, and `System.Net.Http.HttpClient` logs at `Warning`: its four lines per request (file fetches and the worker's own OTLP exports) were most of the remaining volume. Both are set in `Program.cs` because `appsettings.json` is not published with the worker (plain `Microsoft.NET.Sdk`), so in the container all configuration comes from environment variables. `ChatClient` is built at startup, so an empty base URL or key would crash-loop the pod; placeholders are never empty.
 - **Blocking bug before enabling captioning**: the worker PUTs only `Description`; `MediaService.UpdateAsync` assigns `Title` unconditionally (`backend/DemoCms.Infrastructure/Services/MediaService.cs:180`), so each caption nulls the title or fails the update.
 
 ### cms-frontend
 
 - **Replicas**: 1 (`local`), 2 (`dev`), with a PDB `minAvailable: 1` and zone topology spread.
-- **Config**: `BACKEND_HOST=cms-backend:8080`; `CORALOGIX_RUM_DOMAIN=eu1.coralogix.com`, `CORALOGIX_APPLICATION=cms-demo`, `CORALOGIX_SUBSYSTEM=cms-frontend`, `CORALOGIX_ORGANIZATION_NAME`, `CORALOGIX_ENVIRONMENT` (overlay), `CORALOGIX_APP_VERSION` (image tag), sampling/recording flags, `CORALOGIX_OTLP_TRACES_URL=/v1/traces`.
+- **Config**: `BACKEND_HOST=cms-backend:8080`; `CORALOGIX_RUM_DOMAIN` from Secret `rum-keys` (property `DOMAIN` of `cms-demo/<env>/coralogix-rum`, e.g. `eu1.coralogix.com`), `CORALOGIX_APPLICATION=cms-demo`, `CORALOGIX_SUBSYSTEM=cms-frontend`, `CORALOGIX_ORGANIZATION_NAME`, `CORALOGIX_ENVIRONMENT` (overlay), `CORALOGIX_APP_VERSION` (image tag), sampling/recording flags, `CORALOGIX_OTLP_TRACES_URL=/v1/traces`.
 - **Secret**: `CORALOGIX_RUM_PUBLIC_KEY` ← ExternalSecret `rum-keys` from `cms-demo/<env>/coralogix-rum` (**fix**: currently hard-coded at `k8s/frontend-deployment.yaml:36`, committed to the public repo). An empty value disables RUM (the SDK checks for it), which is the placeholder.
 - **Probes**: `/health`.
 - **Note**: the entrypoint writes `runtime-env.js` and the nginx config at start, so `readOnlyRootFilesystem` needs emptyDir mounts (hardening backlog).
@@ -80,13 +80,13 @@ All images are built for `linux/arm64` (Graviton nodes, Apple Silicon host) and 
 
 ### kafka-topics (new Job)
 
-- Image `apache/kafka` (pinned, multi-arch), `kafka-topics.sh --create --if-not-exists` for `media.uploaded` and `otel-logs`, 3 partitions, replication factor from `KAFKA_REPLICATION_FACTOR`, bootstrap from `KAFKA_BOOTSTRAP_SERVERS`.
+- Image `apache/kafka` (pinned, multi-arch), `kafka-topics.sh --create --if-not-exists` for `media.uploaded`, 3 partitions, replication factor from `KAFKA_REPLICATION_FACTOR`, bootstrap from `KAFKA_BOOTSTRAP_SERVERS`.
 - Argo CD Sync hook, wave -1, `BeforeHookCreation` delete policy; works against floci Redpanda and MSK alike.
 
 ## Cross-cutting manifest standards
 
 - Keep: `automountServiceAccountToken: false`, `seccompProfile: RuntimeDefault`, `allowPrivilegeEscalation: false`, capabilities dropped, requests and limits on every container.
-- Add: recommended labels (`app.kubernetes.io/name`, `part-of: cms-demo`, `version`), PDBs and zone spread for multi-replica tiers in `dev`/`prod`, a `build-info` ConfigMap (`APP_VERSION`) written by the same promotion commit that changes image tags, and `reloader.stakater.com/auto: "true"` on every workload that reads an ESO-managed Secret.
+- Add: recommended labels (`app.kubernetes.io/name`, `part-of: cms-demo`, `version`), PDBs and zone spread for multi-replica tiers in `dev`/`prod`, a `build-info` ConfigMap (`APP_VERSION`) written by the same promotion commit that changes image tags, and `reloader.stakater.com/auto: "true"` on every workload that reads an ESO-managed Secret. `build-info` also carries `DEPLOYMENT_ENVIRONMENT` (overlay name); `cms-backend`, `media-worker` and `canvas-backend` export it as `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=$(DEPLOYMENT_ENVIRONMENT)` so Coralogix annotations match the APM environment (ADR-025). Kubernetes attributes (`k8s.pod.name`, `k8s.node.name`, `k8s.deployment.name`, `k8s.namespace.name`), which Coralogix needs on every span to correlate APM with infrastructure, are added by the node-local agent's `k8sattributes` from the connection IP; this needs the agent on `hostNetwork` (chart default), since a hostPort masquerades same-node pods.
 - NetworkPolicy: default-deny ingress for `cms-demo`; allow from namespace `edge` to the four HTTP services, intra-namespace calls listed above, and nothing else. Egress stays open in phase 1–2 (browser RUM, Kafka, OTLP, captioning).
 - No base manifest contains a registry, an image tag, a hostname, a `storageClassName` or a floci address.
 

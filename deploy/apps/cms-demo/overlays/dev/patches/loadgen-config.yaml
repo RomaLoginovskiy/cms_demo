@@ -20,7 +20,7 @@ data:
       # Switch back to canvas with the admin UI "Canvas" scenario, or app: canvas + http://canvas-frontend.
       app: cms
       # Public hostname through the NAT gateway (Q3); in-cluster calls would miss the route hostnames.
-      frontend_base_url: https://cms-dev.REPLACE_WITH_DOMAIN/cms
+      frontend_base_url: https://cms-dev.replace-with-domain.invalid/cms
     users:
       count: 10
       max_contexts_per_pod: 10

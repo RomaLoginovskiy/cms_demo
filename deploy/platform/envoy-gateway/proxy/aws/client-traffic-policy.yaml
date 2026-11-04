@@ -1,5 +1,7 @@
 # The NLB sends PROXY protocol v2. optional: in-cluster clients may call the Gateway Service directly.
-# forwardProtoConfig derives X-Forwarded-Proto from the PROXY destination port (443 -> https).
+# Envoy sees plain HTTP behind the NLB's TLS listener, so X-Forwarded-Proto reads "http"; the backends
+# do not use it (no forwarded-headers middleware). Envoy Gateway 1.9 has no field to derive it from
+# the PROXY destination port.
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
@@ -12,6 +14,3 @@ spec:
       name: cms-edge
   proxyProtocol:
     optional: true
-    forwardProtoConfig:
-      httpsDestinationPorts: [443]
-      httpDestinationPorts: [80]

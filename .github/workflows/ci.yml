@@ -73,15 +73,21 @@ jobs:
           schemas=(-schema-location default
                    -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json')
           render() { kubectl kustomize --enable-helm --load-restrictor LoadRestrictionsNone "$1"; }
+          # Validate every directory, then fail once, so one broken overlay does not hide the rest.
+          failed=()
           for dir in deploy/apps/cms-demo/overlays/* deploy/platform/coralogix-otel/overlays/* \
                      deploy/platform/external-secrets/stores deploy/platform/envoy-gateway/base \
-                     deploy/platform/envoy-gateway/proxy/*; do
+                     deploy/platform/envoy-gateway/proxy/* deploy/platform/argo-cd/notifications; do
             echo "::group::$dir"
-            render "$dir" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" -
+            render "$dir" | kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" - || failed+=("$dir")
             echo "::endgroup::"
           done
           kubeconform -strict -summary -ignore-missing-schemas "${schemas[@]}" \
-            deploy/argocd deploy/platform/namespaces deploy/platform/storage
+            deploy/argocd deploy/platform/namespaces deploy/platform/storage || failed+=("raw manifests")
+          if [ "${#failed[@]}" -gt 0 ]; then
+            printf '::error::invalid manifests in %s\n' "${failed[@]}"
+            exit 1
+          fi
 
   secrets-scan:
     runs-on: ubuntu-24.04
@@ -92,3 +98,23 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # One Coralogix annotation per push to main with the overall result (ADR-025). Pull requests stay
+  # off the charts; runs superseded by a newer push (cancelled) are not reported.
+  annotate:
+    if: ${{ !cancelled() && github.event_name == 'push' }}
+    needs: [dotnet, node, terraform, manifests, secrets-scan]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Annotate the CI result in Coralogix
+        continue-on-error: true
+        env:
+          CX_OPS_EVENTS_API_KEY: ${{ secrets.CX_OPS_EVENTS_API_KEY }}
+          CX_DOMAIN: ${{ vars.CX_DOMAIN }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          status=success
+          for r in $RESULTS; do [ "$r" = success ] || [ "$r" = skipped ] || status=failure; done
+          infra/scripts/ops-event.sh cd --task-type test --task-name ci --status "$status" --extra category=test \
+            --description "CI $status on ${GITHUB_REF_NAME}: $(git log -1 --format=%s | cut -c1-120)"

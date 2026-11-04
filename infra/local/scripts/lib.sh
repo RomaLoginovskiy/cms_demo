@@ -52,7 +52,7 @@ kubectl_local() { KUBECONFIG="$KUBECONFIG_LOCAL" kubectl --context "$CLUSTER" "$
 # resolve by label first and never hard-code names.
 k3s_container() {
   local name
-  name="$(docker ps --filter "label=io.floci.resource-id=$CLUSTER" --format '{{.Names}}' | head -n1)"
+  name="$(docker ps -a --filter "label=io.floci.resource-id=$CLUSTER" --format '{{.Names}}' | head -n1)"
   if [ -z "$name" ]; then
     for candidate in "floci-aws-eks-$CLUSTER" "floci-eks-$CLUSTER"; do
       if docker inspect "$candidate" >/dev/null 2>&1; then name="$candidate"; break; fi
@@ -60,6 +60,23 @@ k3s_container() {
   fi
   [ -n "$name" ] || die "k3s container for $CLUSTER not found (is the infra stack applied?)"
   printf '%s\n' "$name"
+}
+
+# floci restarts the k3s container once after creating it, and that restart can die in kubelet
+# ("cgroup [kubepods] has some missing controllers"); a plain start then works (gap G22).
+# Starts a stopped k3s container and waits for the Kubernetes API (needs the kubeconfig).
+ensure_k3s() {
+  local name
+  name="$(k3s_container)"
+  if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != "true" ]; then
+    warn "k3s container $name is stopped; starting it (gap G22)"
+    docker start "$name" >/dev/null
+  fi
+  for _ in $(seq 1 60); do
+    kubectl_local get --raw /readyz >/dev/null 2>&1 && return 0
+    sleep 5
+  done
+  die "Kubernetes API of $CLUSTER is not ready (docker logs $name)"
 }
 
 # Redpanda broker that floci runs for the MSK cluster (one per environment).

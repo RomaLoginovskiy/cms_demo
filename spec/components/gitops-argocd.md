@@ -26,8 +26,10 @@ deploy/
     aws-load-balancer-controller/ # values (AWS only)
     external-dns/                 # values (AWS only)
     metrics-server/               # values (AWS only; k3s bundles its own)
+    kube-state-metrics/           # values (allowlist: kube_pod_info, kube_node_info, … for APM correlation)
+    node-exporter/                # values, values-local.yaml (floci: root mount propagation None)
     storage/                      # gp3 default StorageClass (AWS only)
-    coralogix-otel/               # Kustomize helmCharts(otel-integration) + otel-gateway + otel-agent Service
+    coralogix-otel/               # Kustomize helmCharts(otel-integration) + otel-agent Service + /v1/traces route
       base/                       #   + ExternalSecrets + HTTPRoute /v1/traces
       overlays/{local,dev,prod}/  #   local: mountPropagation patches (ex post-renderer.sh)
   apps/
@@ -62,13 +64,15 @@ Every ApplicationSet uses the **cluster generator** with Go templates (`goTempla
 | ApplicationSet | Selector | Source | Destination | Notes |
 |---|---|---|---|---|
 | `namespaces` | all | `platform/namespaces` | — | `cms-demo` (PSA `baseline`, warn `restricted`, `edge.cms-demo/routes: "true"`), `edge` (`baseline`), `observability` (`privileged`, `edge.cms-demo/routes: "true"`) |
-| `argo-cd` | all | Helm `argo-cd` + values from Git | `argocd` | self-management |
-| `external-secrets` | all | Helm + `platform/external-secrets/stores` | `external-secrets` | service accounts `eso-app` / `eso-observability` annotated with `irsa_role_arn_eso_app` / `irsa_role_arn_eso_observability`; ClusterSecretStores (region from `aws_region`) with namespace `conditions`; locally `AWS_STS_ENDPOINT`, `AWS_SECRETSMANAGER_ENDPOINT`, `AWS_SSM_ENDPOINT` = `aws_endpoint_url`; `SkipDryRunOnMissingResource=true` |
+| `argo-cd` | all | Helm `argo-cd` + values from Git + `platform/argo-cd/notifications` | `argocd` | self-management; Notifications post Coralogix annotations (ADR-025, ExternalSecret `argocd-notifications-secret`); `SkipDryRunOnMissingResource=true` |
+| `external-secrets` | all | Helm + `platform/external-secrets/stores` | `external-secrets` | service accounts `eso-app` / `eso-observability` / `eso-argocd` annotated with `irsa_role_arn_eso_app` / `irsa_role_arn_eso_observability` / `irsa_role_arn_eso_argocd`; ClusterSecretStores (region from `aws_region`) with namespace `conditions`; locally `AWS_STS_ENDPOINT`, `AWS_SECRETSMANAGER_ENDPOINT`, `AWS_SSM_ENDPOINT` = `aws_endpoint_url`; `SkipDryRunOnMissingResource=true` |
 | `reloader` | all | Helm | `reloader` | watches annotated workloads |
 | `envoy-gateway` | all | Helm `gateway-crds-helm` + Helm `gateway-helm` (`deploy.type: GatewayNamespace`) + `platform/envoy-gateway/overlays/{{if eq .metadata.labels.cloud "aws"}}aws{{else}}local{{end}}` | `envoy-gateway-system`, `edge` | AWS `EnvoyProxy`: NLB class, annotations and `loadBalancerSourceRanges` templated from `acm_certificate_arn` and `public_ingress_cidrs` |
 | `aws-load-balancer-controller` | `cloud=aws` | Helm | `kube-system` | `clusterName`, `vpcId`, `region` from annotations (IMDS hop limit 1 hides them); Gateway API feature gates off; `ignoreDifferences` + `RespectIgnoreDifferences=true` for the webhook TLS Secret data and the webhook configurations' `caBundle` (the chart generates its certificate at render time) |
 | `external-dns` | `cloud=aws` | Helm | `external-dns` | source `gateway-httproute`, domain filter `route53_zone_name`, policy `sync`, owner ID = cluster name |
 | `metrics-server` | `cloud=aws` | Helm | `kube-system` | k3s already bundles metrics-server; installing a second copy on floci collides on the Deployment selector and the APIService |
+| `kube-state-metrics` | all | Helm (prometheus-community) + values from Git | `observability` | scraped by the Coralogix cluster collector (`prometheus/ksm`); Coralogix APM joins spans to `kube_pod_info` / `kube_node_info` |
+| `node-exporter` | all | Helm `prometheus-node-exporter` + `values.yaml` + `values-{{environment}}.yaml` (`ignoreMissingValueFiles`) | `observability` | hostNetwork DaemonSet; the cluster collector discovers its pods (`prometheus/node-exporter`, host-level `node_*` families only) and copies `service.instance.id` back to `instance`, which APM matches against the node internal IP |
 | `storage` | `cloud=aws` | `platform/storage` | — | default `gp3` class |
 | `coralogix-otel` | all | `platform/coralogix-otel/overlays/{{.metadata.labels.environment}}` | `observability` | Kustomize `--enable-helm` |
 | `cms-demo` | all | `apps/cms-demo/overlays/{{.metadata.labels.environment}}` | `cms-demo` (project `cms-demo`) | registry host from `ecr_registry`; local tag override (below); components (load generator, RUM scenarios) chosen by each overlay |
@@ -164,14 +168,15 @@ Two `ClusterSecretStore`s, each with its own service account and IRSA role (ADR-
 |---|---|---|---|
 | `aws-app` | `eso-app` | `cms-demo` | SM `cms-demo/<env>/coralogix-rum`, `cms-demo/<env>/llm`; SSM `/cms-demo/<env>/{kafka,app,llm}/*` |
 | `aws-observability` | `eso-observability` | `observability` | SM `cms-demo/<env>/coralogix-ingest`; SSM `/cms-demo/<env>/kafka/*` |
+| `argocd-secrets` | `eso-argocd` | `argocd` | SM `cms-demo/<env>/coralogix-ops-events` only (annotations key, ADR-025) |
 
 | ExternalSecret | Namespace | Store | Resulting Secret keys | Consumed as |
 |---|---|---|---|---|
-| `coralogix-keys` | `observability` | `aws-observability` | `PRIVATE_KEY` | Coralogix chart, otel-gateway (unchanged key name) |
-| `kafka-bootstrap` | `observability` | `aws-observability` | `KAFKA_BROKERS` (templated as a YAML flow list) | agent `kafka/logs` exporter, otel-gateway receiver |
+| `coralogix-keys` | `observability` | `aws-observability` | `PRIVATE_KEY` | Coralogix chart (unchanged key name) |
 | `rum-keys` | `cms-demo` | `aws-app` | `CORALOGIX_RUM_PUBLIC_KEY` | both frontends |
 | `app-endpoints` | `cms-demo` | `aws-app` | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_REPLICATION_FACTOR`, `PUBLIC_ORIGIN`, `LLM_BASE_URL`, `LLM_MODEL` | backends, worker, topics Job |
 | `llm-api-key` | `cms-demo` | `aws-app` | `OPENAI_API_KEY` | media-worker `OpenAI__ApiKey` |
+| `argocd-notifications-secret` | `argocd` | `argocd-secrets` | `coralogix-ops-events-token` | Argo CD Notifications webhook `coralogix-ops-events` |
 
 `refreshInterval: 1h`. ESO rewrites a Secret when its source changes, but Argo CD tracks only the ExternalSecret, so env-var consumers would keep stale values; every consuming Deployment/StatefulSet therefore carries `reloader.stakater.com/auto: "true"` and Reloader rolls it.
 
@@ -204,7 +209,7 @@ Two `ClusterSecretStore`s, each with its own service account and IRSA role (ADR-
 | `k8s/ingress.yaml` | `apps/cms-demo/base/routes/` (+ `/v1/traces` route in `platform/coralogix-otel`) | HTTPRoutes per ADR-018 |
 | `k8s/network-policy.yaml` | `apps/cms-demo/base/network-policies/` | allow from namespace `edge` (where the Envoy proxies run) instead of `ingress-nginx` |
 | `k8s/kafka-deployment.yaml` | removed | MSK / floci MSK + `kafka-topics` Job (ADR-020) |
-| `k8s/otel-agent-service.yaml`, `k8s/otel-gateway-*.yaml` | `platform/coralogix-otel/base/` | namespace `observability`; brokers and key from ExternalSecrets |
+| `k8s/otel-agent-service.yaml` | `platform/coralogix-otel/base/` | namespace `observability`; key from an ExternalSecret. `k8s/otel-gateway-*.yaml` is not ported: on EKS the agent ships logs directly (Q7) |
 | `coralogix/values.yaml` | `platform/coralogix-otel/base/values.yaml` + overlay values | `clusterName` per environment; Kafka brokers via env var |
 | `coralogix/post-renderer.sh` | `platform/coralogix-otel/overlays/local/` patches | applied only on floci |
 | `k8s/canvas-load-{configmap,statefulset}.yaml` | `apps/cms-demo/components/loadgen/` | bare image; target URL per overlay |

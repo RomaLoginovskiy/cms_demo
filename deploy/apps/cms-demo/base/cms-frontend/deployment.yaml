@@ -39,7 +39,10 @@ spec:
                   name: rum-keys
                   key: CORALOGIX_RUM_PUBLIC_KEY
             - name: CORALOGIX_RUM_DOMAIN
-              value: "eu1.coralogix.com"
+              valueFrom:
+                secretKeyRef:
+                  name: rum-keys
+                  key: CORALOGIX_RUM_DOMAIN
             - name: CORALOGIX_APPLICATION
               value: "cms-demo"
             - name: CORALOGIX_SUBSYSTEM

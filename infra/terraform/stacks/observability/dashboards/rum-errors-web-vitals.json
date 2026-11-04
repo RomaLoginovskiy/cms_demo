@@ -1,0 +1,516 @@
+{
+  "name": "RUM — Frontend Error & Web Vitals (cms-demo)",
+  "layout": {
+    "sections": [
+      {
+        "id": {
+          "value": "74e99a2c-bfa7-4959-ab2d-42f5d8734523"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "bd7df76c-41c5-4476-81a7-22e919e53857"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "8a64b821-d494-42d2-b0d1-88d2731534b8"
+                },
+                "title": "% sessions with error over time",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": false,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "2d8c42aa-e1cc-4896-8425-10736eaf41b2",
+                        "query": {
+                          "dataprime": {
+                            "dataprimeQuery": {
+                              "text": "source logs | filter $l.subsystemname == 'cx_rum' | groupby roundTime($m.timestamp, 1h) as t aggregate approx_count_distinct(if($d.cx_rum.event_context.severity:num == 5, $d.cx_rum.session_context.session_id)) * 100.0 / approx_count_distinct($d.cx_rum.session_context.session_id) as pct_current | orderby t asc"
+                            },
+                            "filters": []
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_PERCENT",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                        "decimal": 2,
+                        "hashColors": false,
+                        "decimalPrecision": false
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false,
+                    "xAxisTimeFormat": "X_AXIS_TIME_FORMAT_AUTO"
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "70d179a8-6988-41c2-b404-f81a12064456"
+                },
+                "title": "Board-load failure rate",
+                "definition": {
+                  "gauge": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'custom-measurement' | aggregate count_if($d.cx_rum.custom_measurement_context.name == 'whiteboard_hub_error') * 100.0 / count_if($d.cx_rum.custom_measurement_context.name == 'whiteboard_hub_error' || $d.cx_rum.custom_measurement_context.name == 'whiteboard_hub_joined') as board_load_failure_rate"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "min": 0,
+                    "max": 100,
+                    "showInnerArc": true,
+                    "showOuterArc": true,
+                    "unit": "UNIT_PERCENT",
+                    "thresholds": [
+                      {
+                        "from": 0,
+                        "color": "var(--c-visualization-green-05)"
+                      },
+                      {
+                        "from": 10,
+                        "color": "var(--c-visualization-yellow-05)"
+                      },
+                      {
+                        "from": 30,
+                        "color": "var(--c-visualization-red-05)"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                    "thresholdBy": "THRESHOLD_BY_UNSPECIFIED",
+                    "decimal": 1,
+                    "thresholdType": "THRESHOLD_TYPE_ABSOLUTE",
+                    "legend": {
+                      "isVisible": false,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "legendBy": "LEGEND_BY_GROUPS",
+                    "displaySeriesName": false,
+                    "decimalPrecision": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "On-call summary",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "a02bcaef-223d-4162-8158-af303e10d1cd"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "7da00fe8-0f76-494f-bd29-08a13f355de6"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "8d5aae18-22ac-44ab-be29-bf2992a33c3e"
+                },
+                "title": "Error volume per critical flow",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.severity:num == 5 | groupby $d.cx_rum.labels.integrationContext as flow aggregate count() as errors | orderby errors desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "flow"
+                      },
+                      {
+                        "field": "errors"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          },
+          {
+            "id": {
+              "value": "7330f76e-bec7-46f3-b0f2-f3b8b4d5857b"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "c4b3f387-eb9e-4f4a-9ee1-0193ec77f7da"
+                },
+                "title": "Top error fingerprints (first/last seen)",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'error' | groupby $d.cx_rum.fingerPrint as fingerprint aggregate count() as errors, min($m.timestamp.formatTimestamp('iso8601bare')) as first_seen, max($m.timestamp.formatTimestamp('iso8601bare')) as last_seen, any_value($d.cx_rum.error_context.error_message) as message, any_value($d.cx_rum.error_context.error_type) as type | orderby errors desc | limit 20"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.fingerprint"
+                      },
+                      {
+                        "field": "$d.errors"
+                      },
+                      {
+                        "field": "$d.first_seen"
+                      },
+                      {
+                        "field": "$d.last_seen"
+                      },
+                      {
+                        "field": "$d.message"
+                      },
+                      {
+                        "field": "$d.type"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Errors by critical flow & fingerprint",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "0fbdd32d-bbca-4f54-bae4-17a67ea6014c"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "77de6ab3-3dfb-43f3-844b-501868ba87bc"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "10f734af-c920-4a24-bad3-c6e4bfd9e4be"
+                },
+                "title": "Errors by geography (country)",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.severity:num == 5 | groupby $d.cx_rum.session_context.ip_geoip.country_name as country aggregate count() as errors, approx_count_distinct($d.cx_rum.session_context.session_id) as sessions | orderby errors desc | limit 20"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "country"
+                      },
+                      {
+                        "field": "errors"
+                      },
+                      {
+                        "field": "sessions"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "e8901d07-4c44-4302-bef0-999b3b7ec21a"
+                },
+                "title": "Browser × device error matrix",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.severity:num == 5 | groupby $d.cx_rum.session_context.browser as browser, $d.cx_rum.session_context.device as device aggregate count() as errors | orderby errors desc | limit 20"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "browser"
+                      },
+                      {
+                        "field": "device"
+                      },
+                      {
+                        "field": "errors"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Errors by geography & client",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "7a26b1f9-2985-4231-b09c-7364aeae14e2"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "831144ac-9d6d-4ca6-80fe-9f4634607f16"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "314687cd-7dc4-4546-8afb-a1257889aa72"
+                },
+                "title": "LCP p75 (ms)",
+                "definition": {
+                  "gauge": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'web-vitals' && $d.cx_rum.web_vitals_context.name == 'LCP' | aggregate percentile(0.75, $d.cx_rum.web_vitals_context.value) as p75"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "min": 0,
+                    "max": 8000,
+                    "showInnerArc": true,
+                    "showOuterArc": true,
+                    "unit": "UNIT_NUMBER",
+                    "thresholds": [
+                      {
+                        "from": 0,
+                        "color": "var(--c-visualization-green-05)"
+                      },
+                      {
+                        "from": 2500,
+                        "color": "var(--c-visualization-yellow-05)"
+                      },
+                      {
+                        "from": 4000,
+                        "color": "var(--c-visualization-red-05)"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                    "thresholdBy": "THRESHOLD_BY_UNSPECIFIED",
+                    "decimal": 0,
+                    "thresholdType": "THRESHOLD_TYPE_ABSOLUTE",
+                    "legend": {
+                      "isVisible": false,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "legendBy": "LEGEND_BY_GROUPS",
+                    "displaySeriesName": false,
+                    "decimalPrecision": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "cd5aa11e-dc97-4cf7-8d90-7648d7ae1448"
+                },
+                "title": "INP p75 (ms)",
+                "definition": {
+                  "gauge": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'web-vitals' && $d.cx_rum.web_vitals_context.name == 'INP' | aggregate percentile(0.75, $d.cx_rum.web_vitals_context.value) as p75"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "min": 0,
+                    "max": 1000,
+                    "showInnerArc": true,
+                    "showOuterArc": true,
+                    "unit": "UNIT_NUMBER",
+                    "thresholds": [
+                      {
+                        "from": 0,
+                        "color": "var(--c-visualization-green-05)"
+                      },
+                      {
+                        "from": 200,
+                        "color": "var(--c-visualization-yellow-05)"
+                      },
+                      {
+                        "from": 500,
+                        "color": "var(--c-visualization-red-05)"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                    "thresholdBy": "THRESHOLD_BY_UNSPECIFIED",
+                    "decimal": 0,
+                    "thresholdType": "THRESHOLD_TYPE_ABSOLUTE",
+                    "legend": {
+                      "isVisible": false,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "legendBy": "LEGEND_BY_GROUPS",
+                    "displaySeriesName": false,
+                    "decimalPrecision": false
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "a40c3a61-213a-402b-bed4-9b9834cb02bf"
+                },
+                "title": "CLS p75",
+                "definition": {
+                  "gauge": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'web-vitals' && $d.cx_rum.web_vitals_context.name == 'CLS' | aggregate percentile(0.75, $d.cx_rum.web_vitals_context.value) as p75"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "min": 0,
+                    "max": 1,
+                    "showInnerArc": true,
+                    "showOuterArc": true,
+                    "unit": "UNIT_NUMBER",
+                    "thresholds": [
+                      {
+                        "from": 0,
+                        "color": "var(--c-visualization-green-05)"
+                      },
+                      {
+                        "from": 0.1,
+                        "color": "var(--c-visualization-yellow-05)"
+                      },
+                      {
+                        "from": 0.25,
+                        "color": "var(--c-visualization-red-05)"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                    "thresholdBy": "THRESHOLD_BY_UNSPECIFIED",
+                    "decimal": 3,
+                    "thresholdType": "THRESHOLD_TYPE_ABSOLUTE",
+                    "legend": {
+                      "isVisible": false,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "legendBy": "LEGEND_BY_GROUPS",
+                    "displaySeriesName": false,
+                    "decimalPrecision": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Web Vitals scorecard (p75)",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "variables": [],
+  "variablesV2": [],
+  "filters": [],
+  "relativeTimeFrame": "86400s",
+  "annotations": [],
+  "off": {},
+  "actions": []
+}

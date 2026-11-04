@@ -6,5 +6,4 @@ namespace: observability
 resources:
   - external-secrets.yaml
   - otel-agent-service.yaml
-  - otel-gateway.yaml
   - traces-route.yaml

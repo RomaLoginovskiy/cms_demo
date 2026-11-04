@@ -15,6 +15,8 @@ resources:
   - cms-backend/deployment.yaml
   - cms-backend/service.yaml
   - media-worker/deployment.yaml
+  - cms-agent/deployment.yaml
+  - cms-agent/service.yaml
   - cms-frontend/deployment.yaml
   - cms-frontend/service.yaml
   - canvas-backend/deployment.yaml

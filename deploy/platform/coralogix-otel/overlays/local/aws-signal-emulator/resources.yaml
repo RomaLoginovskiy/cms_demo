@@ -1,0 +1,98 @@
+# Emulated AWS CloudWatch metrics for floci (local only); see emulator.py. Reads node usage and status
+# from the API server and disk counters from /proc; sends OTLP to the node agent like the apps do.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aws-signal-emulator
+  labels:
+    app: aws-signal-emulator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: aws-signal-emulator
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: aws-signal-emulator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aws-signal-emulator
+subjects:
+  - kind: ServiceAccount
+    name: aws-signal-emulator
+    namespace: observability
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-signal-emulator
+  labels:
+    app: aws-signal-emulator
+    workshop: "true"
+    cloud: floci
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aws-signal-emulator
+  template:
+    metadata:
+      labels:
+        app: aws-signal-emulator
+        workshop: "true"
+        cloud: floci
+    spec:
+      serviceAccountName: aws-signal-emulator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: emulator
+          image: python:3.13-alpine
+          command: ["python3", "-u", "/app/emulator.py"]
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTLP_METRICS_URL
+              value: "http://$(NODE_IP):4318/v1/metrics"
+            - name: CLUSTER_NAME
+              value: cms-local
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: aws-signal-emulator

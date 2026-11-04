@@ -56,7 +56,14 @@ module.exports = (_env, argv) => {
     devServer: {
       historyApiFallback: true,
       hot: true,
-      port: 3000
+      port: 3000,
+      // Browser spans POST to the same-origin /v1/traces route; locally that is an OTLP/HTTP collector.
+      proxy: [
+        {
+          context: ['/v1/traces'],
+          target: process.env.OTEL_COLLECTOR_URL ?? 'http://localhost:4318'
+        }
+      ]
     }
   };
 };

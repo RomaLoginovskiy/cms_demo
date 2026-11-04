@@ -5,7 +5,9 @@
 
 mkdir -p "$AWS_DIR"
 if [ -f "$AWS_DIR/credentials" ]; then
-  if (use_identity; aws sts get-caller-identity >/dev/null 2>&1); then
+  # floci answers unknown keys as the account root, so success alone does not prove the key exists
+  # (a reset Docker disk wipes floci's IAM); the EKS token webhook then rejects every token.
+  if (use_identity; aws sts get-caller-identity --query Arn --output text 2>/dev/null) | grep -q ':user/local-admin$'; then
     log "local identity already valid ($AWS_DIR)"
     exit 0
   fi

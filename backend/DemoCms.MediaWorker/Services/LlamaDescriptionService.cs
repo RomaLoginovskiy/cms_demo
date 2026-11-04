@@ -20,11 +20,18 @@ public class LlamaDescriptionService : IImageDescriptionService
         _chatClient = chatClient;
         _options = options.Value;
         _logger = logger;
+
+        if (_options.IsPlaceholderEndpoint)
+        {
+            _logger.LogWarning(
+                "Captioning disabled: OpenAI:BaseUrl {BaseUrl} is a placeholder, so media keeps no description",
+                _options.BaseUrl);
+        }
     }
 
     public async Task<string?> GenerateDescriptionAsync(byte[] imageBytes, CancellationToken cancellationToken = default)
     {
-        if (imageBytes.Length == 0)
+        if (imageBytes.Length == 0 || _options.IsPlaceholderEndpoint)
         {
             return null;
         }

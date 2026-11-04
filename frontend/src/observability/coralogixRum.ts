@@ -23,6 +23,7 @@ export interface RuntimeAppConfig {
   CORALOGIX_RUM_SESSION_RECORDING_SAMPLE_RATE?: string;
   CORALOGIX_RUM_TRACK_SOFT_NAVIGATIONS?: string;
   CORALOGIX_OTLP_TRACES_URL?: string;
+  OTEL_SDK_DISABLED?: string;
 }
 
 declare global {
@@ -45,6 +46,7 @@ export function initializeCoralogixRum(config: RuntimeAppConfig = window.__APP_C
     return false;
   }
 
+  const otlpTracesUrl = resolveOtlpTracesUrl(config);
   CoralogixRum.init({
     public_key: publicKey,
     coralogixDomain: normalizeCoralogixDomain(config.CORALOGIX_RUM_DOMAIN),
@@ -66,7 +68,9 @@ export function initializeCoralogixRum(config: RuntimeAppConfig = window.__APP_C
     },
     sessionRecordingConfig: buildSessionRecordingConfig(config),
     trackSoftNavigations: resolveTrackSoftNavigations(config),
-    tracesExporter: createTracesExporter(resolveOtlpTracesUrl(config)),
+    // Span export POSTs go through the patched fetch; without this they become network events carrying traceparent.
+    ignoreUrls: [buildOtlpIgnoreUrlPattern(otlpTracesUrl)],
+    tracesExporter: createTracesExporter(otlpTracesUrl),
     traceParentInHeader: buildTraceParentInHeaderConfig()
   });
   initialized = true;
@@ -99,13 +103,22 @@ export function buildTraceParentInHeaderConfig(): {
 } {
   const propagateTraceHeaderCorsUrls: RegExp[] = [/\/api\//];
   if (typeof window !== 'undefined') {
-    const escapedOrigin = window.location.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    propagateTraceHeaderCorsUrls.push(new RegExp(escapedOrigin));
+    propagateTraceHeaderCorsUrls.push(new RegExp(escapeRegExp(window.location.origin)));
   }
   return {
     enabled: true,
     options: { propagateTraceHeaderCorsUrls }
   };
+}
+
+/** Matches the absolute OTLP traces URL that fetch instrumentation sees for a relative or absolute endpoint. */
+export function buildOtlpIgnoreUrlPattern(endpoint: string): RegExp {
+  const absoluteUrl = typeof window === 'undefined' ? endpoint : new URL(endpoint, window.location.origin).href;
+  return new RegExp(`^${escapeRegExp(absoluteUrl)}`);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 export function normalizeCoralogixDomain(value?: string): CoralogixDomain {
@@ -193,7 +206,7 @@ export function resetCoralogixRumForTests(): void {
   missingPublicKeyWarningLogged = false;
 }
 
-function readRuntimeValue(value?: string): string | undefined {
+export function readRuntimeValue(value?: string): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed || /^\$\{[^}]+}$/.test(trimmed)) {
     return undefined;
@@ -231,7 +244,7 @@ function warnMissingPublicKey(): void {
   console.warn('Coralogix RUM disabled: CORALOGIX_RUM_PUBLIC_KEY is not configured.');
 }
 
-function stripUrlSearchAndHash(url: string): string {
+export function stripUrlSearchAndHash(url: string): string {
   try {
     const parsedUrl = new URL(url, window.location.origin);
     parsedUrl.username = '';

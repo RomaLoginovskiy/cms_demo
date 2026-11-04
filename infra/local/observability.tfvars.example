@@ -1,0 +1,22 @@
+# Your Coralogix team for the observability stack (env local). Copy to infra/local/observability.tfvars
+# (gitignored); tf.sh adds it after infra/terraform/envs/local/observability.tfvars. The API key goes in
+# CORALOGIX_API_KEY in infra/local/.secrets.env: Alerts, Dashboards and Notification Center permissions.
+
+# The region is not set here: CX_DOMAIN in infra/local/.secrets.env (default eu1.coralogix.com) sets
+# it for this stack and for the whole local environment.
+
+# Team console URL, for dashboard links in alert descriptions; leave unset to name the dashboard instead.
+# console_url = "https://<team>.coralogix.com"
+
+# Slack routing of the alerts' Cases; leave unset to skip it. integration_id: Coralogix → Integrations →
+# Slack, or the integrationId field of an existing Slack connector (cx notifications connectors get <id>).
+# Invite the Coralogix Slack app to the channel.
+# slack = {
+#   integration_id = "<coralogix-slack-integration-id>"
+#   channel        = "production-alerts"
+# }
+
+# After the first apply, run `make tf ENV=local STACK=observability CMD="output adopt_ids"` and paste the
+# printed { ... } block here (not the dynamodb_table warning after it), so a lost state (make local-nuke)
+# re-adopts these objects instead of creating duplicates.
+# adopt = { ... }

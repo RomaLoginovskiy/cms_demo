@@ -30,7 +30,7 @@ spec:
     matchExpressions:
       - key: app
         operator: In
-        values: ["cms-frontend", "canvas-frontend", "cms-backend", "canvas-backend"]
+        values: ["cms-frontend", "canvas-frontend", "cms-backend", "canvas-backend", "cms-agent"]
   policyTypes:
     - Ingress
   ingress:

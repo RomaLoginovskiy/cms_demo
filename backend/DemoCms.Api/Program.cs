@@ -31,6 +31,12 @@ if (connectionString.Contains("Data Source="))
     builder.Services.AddDbContext<MediaDbContext>(options =>
         options.UseSqlite(connectionString));
 }
+else if (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase))
+{
+    // PostgreSQL (incident demo; ADR-020 phase 3.3 replaces the sniffing with Database:Provider).
+    builder.Services.AddDbContext<MediaDbContext>(options =>
+        options.UseNpgsql(connectionString));
+}
 else
 {
     builder.Services.AddDbContext<MediaDbContext>(options =>
@@ -61,6 +67,8 @@ builder.Services.AddElastic(builder.Configuration);
 
 // Register services
 builder.Services.AddScoped<IMediaService, MediaService>();
+builder.Services.AddScoped<IMediaQueryService, MediaQueryService>();
+builder.Services.AddSingleton(TimeProvider.System);
 
 // Configure CORS
 builder.Services.AddCors(options =>
@@ -80,7 +88,7 @@ var serviceVersion = builder.Configuration.GetValue<string>("OpenTelemetry:Servi
 
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource
-        .AddService(serviceName, serviceVersion)
+        .AddService(serviceName, serviceVersion: serviceVersion)
         .AddAttributes(new Dictionary<string, object>
         {
             ["environment"] = builder.Environment.EnvironmentName,
@@ -213,3 +221,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Exposed for WebApplicationFactory-based tests.
+public partial class Program { }

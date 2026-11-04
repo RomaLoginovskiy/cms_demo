@@ -158,6 +158,12 @@ variable "llm_model" {
   default     = "none"
 }
 
+variable "coralogix_domain" {
+  description = "Coralogix region domain written as DOMAIN into the placeholder Coralogix secrets (tf.sh sets it from CX_DOMAIN); the real values are written with the keys"
+  type        = string
+  default     = "eu1.coralogix.com"
+}
+
 variable "secret_recovery_window_days" {
   description = "Secrets Manager recovery window (0 for local/dev)"
   type        = number

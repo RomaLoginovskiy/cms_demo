@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Incident demo INC-1 "Postgres-lite" (spec/architecture/incident-demo-scope-2026-11-03.md):
+# cms-backend on a plain Postgres StatefulSet instead of SQLite. The scenario's persona commits
+# edit postgres.yaml (CPU limit, FIN-142) and cms-backend.yaml (replicas, INC-1103).
+resources:
+  - postgres.yaml
+patches:
+  - path: cms-backend.yaml

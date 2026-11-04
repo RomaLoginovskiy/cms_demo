@@ -5,12 +5,15 @@ resources:
   - ../../base
 components:
   - ../../components/loadgen
+  - ../../components/incident-postgres
 # Fallback only: the cms-demo ApplicationSet sets the registry from the cluster Secret and, locally,
 # the tag from its image_tag_override annotation (written by `make local-images`).
 images:
   - name: cms-backend
     newTag: local-unset
   - name: media-worker
+    newTag: local-unset
+  - name: cms-agent
     newTag: local-unset
   - name: cms-frontend
     newTag: local-unset

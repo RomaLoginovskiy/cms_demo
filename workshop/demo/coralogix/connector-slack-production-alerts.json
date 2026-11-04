@@ -1,0 +1,14 @@
+{
+  "connector": {
+    "type": "SLACK",
+    "name": "slack-production-alerts",
+    "description": "Slack #production-alerts. Created by workshop/demo/coralogix/apply.sh (cms_demo) from the integration of an existing Slack connector.",
+    "connectorConfig": {
+      "fields": [
+        { "fieldName": "channel", "value": "production-alerts" },
+        { "fieldName": "fallbackChannel", "value": "${FALLBACK_CHANNEL}" },
+        { "fieldName": "integrationId", "value": "${INTEGRATION_ID}" }
+      ]
+    }
+  }
+}

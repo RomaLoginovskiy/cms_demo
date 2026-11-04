@@ -143,6 +143,8 @@ Structured JSON logs with:
 
 ### Coralogix Integration
 
+> **Local Kubernetes (floci) with GitOps**: [infra/README.md](infra/README.md) sets up the environment and the telemetry keys; Coralogix alerts, dashboards and Slack routing for it are a Terraform stack you apply to your own Coralogix team ([workshop/demo/README.md](workshop/demo/README.md#coralogix-alerts-dashboards-and-routing-terraform)). Nothing it applies is tied to a particular Coralogix account. The Helm steps below are the older standalone path.
+
 This application includes full integration with Coralogix for observability:
 
 - **Backend**: OpenTelemetry traces, metrics, and logs exported to Coralogix

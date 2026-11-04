@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl top:*)",
+      "Bash(kubectl events:*)",
+      "Bash(kubectl auth can-i:*)",
+      "Bash(cx metrics:*)",
+      "Bash(cx spans:*)",
+      "Bash(cx logs:*)",
+      "Bash(cx alerts list:*)",
+      "Bash(cx alerts get:*)",
+      "Bash(cx alerts events:*)",
+      "Bash(git --git-dir=*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git diff:*)"
+    ],
+    "deny": [
+      "Bash(kubectl apply:*)",
+      "Bash(kubectl create:*)",
+      "Bash(kubectl patch:*)",
+      "Bash(kubectl edit:*)",
+      "Bash(kubectl scale:*)",
+      "Bash(kubectl delete:*)",
+      "Bash(kubectl rollout:*)",
+      "Bash(kubectl exec:*)",
+      "Bash(git push:*)",
+      "Bash(cx alerts create:*)",
+      "Bash(cx alerts enable:*)",
+      "Bash(cx alerts disable:*)"
+    ]
+  }
+}

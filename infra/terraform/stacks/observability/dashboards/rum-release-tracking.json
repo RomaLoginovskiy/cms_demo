@@ -1,0 +1,337 @@
+{
+  "name": "RUM — Versions / Release Tracking (cms-demo)",
+  "layout": {
+    "sections": [
+      {
+        "id": {
+          "value": "c8bebc99-9fbd-4507-9925-a3e170e9d466"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "d3db9fb9-8a14-46c6-8aa3-453bdfc9a107"
+            },
+            "appearance": {
+              "height": 22
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "c1e3b4e0-96a2-4d07-943d-e3cd189b0592"
+                },
+                "title": "Adoption graph — sessions per version over time",
+                "definition": {
+                  "lineChart": {
+                    "legend": {
+                      "isVisible": true,
+                      "columns": [],
+                      "groupByQuery": true,
+                      "placement": "LEGEND_PLACEMENT_AUTO"
+                    },
+                    "tooltip": {
+                      "showLabels": false,
+                      "type": "TOOLTIP_TYPE_ALL"
+                    },
+                    "queryDefinitions": [
+                      {
+                        "id": "05b2aebd-849d-4885-9341-dbe8cd7b6105",
+                        "query": {
+                          "dataprime": {
+                            "dataprimeQuery": {
+                              "text": "source logs | filter $l.subsystemname == 'cx_rum' | groupby roundTime($m.timestamp, 1h) as t, $d.cx_rum.version_metadata.app_version as version aggregate approx_count_distinct($d.cx_rum.session_context.session_id) as sessions | orderby t asc"
+                            },
+                            "filters": []
+                          }
+                        },
+                        "seriesCountLimit": "20",
+                        "unit": "UNIT_UNSPECIFIED",
+                        "scaleType": "SCALE_TYPE_LINEAR",
+                        "isVisible": true,
+                        "colorScheme": "classic",
+                        "resolution": {
+                          "bucketsPresented": 96
+                        },
+                        "dataModeType": "DATA_MODE_TYPE_ARCHIVE",
+                        "decimal": 2,
+                        "hashColors": false,
+                        "decimalPrecision": false,
+                        "intervalResolution": {
+                          "auto": {
+                            "minimumInterval": "60s",
+                            "maximumDataPoints": 96
+                          }
+                        }
+                      }
+                    ],
+                    "stackedLine": "STACKED_LINE_UNSPECIFIED",
+                    "connectNulls": false
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Adoption",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "e57e3ac7-7426-4569-83fe-1f233b7c6b3c"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "8d21e495-8e2c-49ab-afc6-af8c9e5ff5f2"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "8c4c1e21-364f-4c11-b935-3c5ae614896a"
+                },
+                "title": "New errors per release (first-seen version)",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'error' | groupby $d.cx_rum.fingerPrint as fp aggregate min_by($m.timestamp, $d.cx_rum.version_metadata.app_version) as first_version | groupby first_version aggregate count() as new_error_fingerprints | orderby new_error_fingerprints desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.first_version"
+                      },
+                      {
+                        "field": "$d.new_error_fingerprints"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "e8a38841-fd62-45ba-950a-03db1d4ac6f6"
+                },
+                "title": "Side-by-side compare (sessions · errors · LCP p75)",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' | groupby $d.cx_rum.version_metadata.app_version as version aggregate approx_count_distinct($d.cx_rum.session_context.session_id) as sessions, count_if($d.cx_rum.event_context.severity:num==5) as errors, percentile(0.75, if($d.cx_rum.web_vitals_context.name=='LCP', $d.cx_rum.web_vitals_context.value)) as lcp_p75 | orderby version desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.version"
+                      },
+                      {
+                        "field": "$d.sessions"
+                      },
+                      {
+                        "field": "$d.errors"
+                      },
+                      {
+                        "field": "$d.lcp_p75"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Errors per release",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "4bd93c21-470b-4046-936e-ffbad9843c64"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "180a2813-f27b-42b2-954e-6744ab8ca120"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "0348924a-1d48-45e0-ac9b-8aa5367f40a3"
+                },
+                "title": "Web Vitals delta — p75 LCP / INP / CLS by version",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' && $d.cx_rum.event_context.type == 'web-vitals' | groupby $d.cx_rum.version_metadata.app_version as version aggregate percentile(0.75, if($d.cx_rum.web_vitals_context.name=='LCP', $d.cx_rum.web_vitals_context.value)) as lcp_p75, percentile(0.75, if($d.cx_rum.web_vitals_context.name=='INP', $d.cx_rum.web_vitals_context.value)) as inp_p75, percentile(0.75, if($d.cx_rum.web_vitals_context.name=='CLS', $d.cx_rum.web_vitals_context.value)) as cls_p75 | orderby version desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.version"
+                      },
+                      {
+                        "field": "$d.lcp_p75"
+                      },
+                      {
+                        "field": "$d.inp_p75"
+                      },
+                      {
+                        "field": "$d.cls_p75"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Web Vitals delta",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      },
+      {
+        "id": {
+          "value": "11e2745d-1475-4140-b7f2-82ef0a032825"
+        },
+        "rows": [
+          {
+            "id": {
+              "value": "7d01cfe3-91e8-4190-805c-a9d055d2755d"
+            },
+            "appearance": {
+              "height": 19
+            },
+            "widgets": [
+              {
+                "id": {
+                  "value": "becbb4fc-44d2-443e-abfe-b840cdb8897e"
+                },
+                "title": "Affected user count per release",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' | groupby $d.cx_rum.version_metadata.app_version as version aggregate approx_count_distinct(if($d.cx_rum.event_context.severity:num==5, $d.cx_rum.session_context.user_id)) as affected_users, approx_count_distinct($d.cx_rum.session_context.user_id) as total_users | orderby affected_users desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.version"
+                      },
+                      {
+                        "field": "$d.affected_users"
+                      },
+                      {
+                        "field": "$d.total_users"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              },
+              {
+                "id": {
+                  "value": "5f9d514c-bf38-4b71-96c2-1e98143193c7"
+                },
+                "title": "Crash-free sessions % per release",
+                "definition": {
+                  "dataTable": {
+                    "query": {
+                      "dataprime": {
+                        "dataprimeQuery": {
+                          "text": "source logs | filter $l.subsystemname == 'cx_rum' | groupby $d.cx_rum.version_metadata.app_version as version aggregate 100.0 * (approx_count_distinct($d.cx_rum.session_context.session_id) - approx_count_distinct(if($d.cx_rum.event_context.severity:num==5, $d.cx_rum.session_context.session_id))) / approx_count_distinct($d.cx_rum.session_context.session_id) as crash_free_pct | orderby version desc"
+                        },
+                        "filters": []
+                      }
+                    },
+                    "resultsPerPage": 20,
+                    "rowStyle": "ROW_STYLE_ONE_LINE",
+                    "columns": [
+                      {
+                        "field": "$d.version"
+                      },
+                      {
+                        "field": "$d.crash_free_pct"
+                      }
+                    ],
+                    "dataModeType": "DATA_MODE_TYPE_ARCHIVE"
+                  }
+                },
+                "highlighted": false
+              }
+            ]
+          }
+        ],
+        "options": {
+          "custom": {
+            "name": "Users & reliability",
+            "collapsed": false,
+            "color": {
+              "predefined": "SECTION_PREDEFINED_COLOR_UNSPECIFIED"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "variables": [],
+  "variablesV2": [],
+  "filters": [],
+  "relativeTimeFrame": "86400s",
+  "annotations": [],
+  "off": {},
+  "actions": []
+}

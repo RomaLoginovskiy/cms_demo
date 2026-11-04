@@ -1,7 +1,8 @@
 # Builds immutable arm64 images on main, pushes them to ECR through GitHub OIDC, then opens an
 # auto-merging promotion PR for overlays/dev. Needs repository variables AWS_ACCOUNT_ID and
 # PROMOTION_APP_ID plus secret PROMOTION_APP_PRIVATE_KEY (a GitHub App: PRs opened with
-# GITHUB_TOKEN would not trigger the required checks).
+# GITHUB_TOKEN would not trigger the required checks). Optional secret CX_OPS_EVENTS_API_KEY (and
+# variable CX_DOMAIN) sends a Coralogix annotation per build (ADR-025).
 name: images
 
 on:
@@ -35,10 +36,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { service: cms-backend, context: backend, dockerfile: backend/Dockerfile }
-          - { service: media-worker, context: backend, dockerfile: backend/DemoCms.MediaWorker/Dockerfile }
+          # apm: the service.name the image reports to Coralogix APM (annotations attach to it).
+          - { service: cms-backend, context: backend, dockerfile: backend/Dockerfile, apm: demo-cms-api }
+          - { service: media-worker, context: backend, dockerfile: backend/DemoCms.MediaWorker/Dockerfile, apm: demo-cms-media-worker }
+          - { service: cms-agent, context: backend, dockerfile: backend/DemoCms.Agent/Dockerfile, apm: demo-cms-agent }
           - { service: cms-frontend, context: frontend, dockerfile: frontend/Dockerfile }
-          - { service: canvas-backend, context: canvas-backend, dockerfile: canvas-backend/Dockerfile }
+          - { service: canvas-backend, context: canvas-backend, dockerfile: canvas-backend/Dockerfile, apm: demo-canvas-api }
           - { service: canvas-frontend, context: canvas-frontend, dockerfile: canvas-frontend/Dockerfile }
           - { service: canvas-load, context: loadgen/canvas-load, dockerfile: loadgen/canvas-load/Dockerfile }
     steps:
@@ -71,6 +74,22 @@ jobs:
           provenance: false
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      # Coralogix annotation (ADR-025): the image tag links this build to the Argo CD deploy event.
+      - name: Annotate the build in Coralogix
+        if: always() && steps.meta.outputs.exists != 'true'
+        continue-on-error: true
+        env:
+          CX_OPS_EVENTS_API_KEY: ${{ secrets.CX_OPS_EVENTS_API_KEY }}
+          CX_DOMAIN: ${{ vars.CX_DOMAIN }}
+          JOB_STATUS: ${{ job.status }}
+          SERVICE: ${{ matrix.service }}
+          APM_SERVICE: ${{ matrix.apm }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          infra/scripts/ops-event.sh cd --task-type build --task-name "build $SERVICE" --status "$JOB_STATUS" \
+            --service "$APM_SERVICE" --extra category=build --extra imageTag="$TAG" --extra image="$IMAGE" \
+            --description "$SERVICE $TAG build $JOB_STATUS: $(git log -1 --format=%s | cut -c1-120)"
 
   promote-dev:
     needs: build
@@ -92,7 +111,7 @@ jobs:
           set -euo pipefail
           tag="sha-${GITHUB_SHA::12}"
           overlay=deploy/apps/cms-demo/overlays/dev
-          for s in cms-backend media-worker cms-frontend canvas-backend canvas-frontend canvas-load; do
+          for s in cms-backend media-worker cms-agent cms-frontend canvas-backend canvas-frontend canvas-load; do
             yq -i "(.images[] | select(.name == \"$s\")).newTag = \"$tag\"" "$overlay/kustomization.yaml"
           done
           yq -i ".data.APP_VERSION = \"$tag\"" "$overlay/patches/build-info.yaml"

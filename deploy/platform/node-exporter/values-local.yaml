@@ -1,0 +1,4 @@
+# floci: k3s inside Docker has no shared root mount, so HostToContainer propagation fails
+# (same as the agent's mount-propagation patch in coralogix-otel/overlays/local).
+hostRootFsMount:
+  mountPropagation: None

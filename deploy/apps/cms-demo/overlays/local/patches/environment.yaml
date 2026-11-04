@@ -23,3 +23,23 @@ spec:
           env:
             - name: CORALOGIX_ENVIRONMENT
               value: "local"
+---
+# CPU-served model (vLLM, ADR-022): slow answers, one chat at a time; message content on spans for debugging.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cms-agent
+spec:
+  template:
+    spec:
+      containers:
+        - name: cms-agent
+          env:
+            - name: Llm__CallTimeoutSeconds
+              value: "180"
+            - name: Agent__RequestTimeoutSeconds
+              value: "240"
+            - name: Agent__MaxConcurrentChats
+              value: "1"
+            - name: OpenTelemetry__CaptureMessageContent
+              value: "true"

@@ -20,6 +20,7 @@ fi
 log "Argo CD source: $repo_url @ $revision"
 
 "$(dirname "$0")/kubeconfig.sh"
+ensure_k3s
 # Pods must resolve floci and its containers before ESO and the app start (gap G16).
 kubectl_local apply -f "$LOCAL_DIR/k8s/coredns-custom.yaml" >/dev/null
 

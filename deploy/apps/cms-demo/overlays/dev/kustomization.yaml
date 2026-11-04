@@ -12,6 +12,8 @@ images:
     newTag: sha-000000000000
   - name: media-worker
     newTag: sha-000000000000
+  - name: cms-agent
+    newTag: sha-000000000000
   - name: cms-frontend
     newTag: sha-000000000000
   - name: canvas-backend
@@ -32,4 +34,4 @@ patches:
     patch: |-
       - op: add
         path: /spec/hostnames
-        value: ["cms-dev.REPLACE_WITH_DOMAIN"]
+        value: ["cms-dev.replace-with-domain.invalid"]

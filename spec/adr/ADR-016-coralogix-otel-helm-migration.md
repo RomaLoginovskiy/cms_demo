@@ -1,7 +1,8 @@
 # ADR-016: Migrate Coralogix OTEL from k8s-raw to Helm
 
 **Status**: Proposed  
-**Date**: 2026-06-18
+**Date**: 2026-06-18  
+**Note (2026-11-02)**: applies to the Docker Desktop `k8s/` path only. On EKS (GitOps, ADR-017) the agent ships container logs straight to Coralogix and there is no `otel-gateway`; see open decision Q7 in the delivery plan.
 
 ## Context
 
