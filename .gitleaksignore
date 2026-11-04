@@ -1,3 +1,7 @@
 # False positives (gitleaks fingerprints: <commit>:<file>:<rule>:<line>).
 # RFC 6455 sample Sec-WebSocket-Key nonce, not a credential; verify.sh now generates a random nonce.
 4def759c764d4473498f944a4b9843633fb384a9:infra/local/scripts/verify.sh:generic-api-key:95
+# Coralogix dashboard ID and alert UUID (object IDs, not credentials) in the adopt block of
+# infra/terraform/envs/local/observability.tfvars; they moved to the gitignored infra/local/observability.tfvars.
+8b55be10f2247cd2142f969e0348263c6326943f:infra/terraform/envs/local/observability.tfvars:generic-api-key:18
+8b55be10f2247cd2142f969e0348263c6326943f:infra/terraform/envs/local/observability.tfvars:generic-api-key:23
